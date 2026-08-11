@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
-    include: ['tests/int/**/*.int.spec.ts'],
+    // .tsx 也要收进来：侧边栏的展开逻辑得渲染组件才测得到
+    include: ['tests/int/**/*.int.spec.ts', 'tests/int/**/*.int.spec.tsx'],
   },
 })

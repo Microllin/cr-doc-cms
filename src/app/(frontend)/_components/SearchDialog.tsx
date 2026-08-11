@@ -20,7 +20,7 @@ export function SearchDialog({ locale }: { locale: Locale }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [docs, setDocs] = useState<SearchDoc[]>([])
-  const loaded = useRef(false)
+  const loadedLocale = useRef<Locale | null>(null)
   const router = useRouter()
 
   // Ctrl/Cmd+K 打开
@@ -35,14 +35,35 @@ export function SearchDialog({ locale }: { locale: Locale }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  // 首次打开时懒加载索引
+  // 每种语言首次打开时懒加载索引；失败后允许下次打开重试。
   useEffect(() => {
-    if (!open || loaded.current) return
-    loaded.current = true
-    fetch(`/search-index?locale=${locale}`)
-      .then((r) => r.json())
-      .then((d: SearchDoc[]) => setDocs(d))
-      .catch(() => setDocs([]))
+    if (!open || loadedLocale.current === locale) return
+
+    const controller = new AbortController()
+    let completed = false
+    loadedLocale.current = locale
+    setDocs([])
+
+    fetch(`/search-index?locale=${locale}`, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Search index request failed: ${r.status}`)
+        return r.json()
+      })
+      .then((d: SearchDoc[]) => {
+        completed = true
+        setDocs(d)
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        loadedLocale.current = null
+        setDocs([])
+        console.error(error)
+      })
+
+    return () => {
+      controller.abort()
+      if (!completed && loadedLocale.current === locale) loadedLocale.current = null
+    }
   }, [open, locale])
 
   const mini = useMemo(() => {
@@ -68,9 +89,13 @@ export function SearchDialog({ locale }: { locale: Locale }) {
 
   return (
     <>
-      <button className="vp-search-btn" onClick={() => setOpen(true)} aria-label="搜索">
+      <button
+        className="vp-search-btn"
+        onClick={() => setOpen(true)}
+        aria-label={locale === 'en' ? 'Search' : '搜索'}
+      >
         <SearchIcon />
-        <span className="vp-search-btn-text">搜索</span>
+        <span className="vp-search-btn-text">{locale === 'en' ? 'Search' : '搜索'}</span>
         <span className="vp-search-kbd">
           <kbd>Ctrl</kbd>
           <kbd>K</kbd>
@@ -80,19 +105,26 @@ export function SearchDialog({ locale }: { locale: Locale }) {
       <Command.Dialog
         open={open}
         onOpenChange={setOpen}
-        label="搜索文档"
-        className="vp-cmd"
+        label={locale === 'en' ? 'Search documentation' : '搜索文档'}
+        contentClassName="vp-cmd"
         shouldFilter={false}
       >
         <div className="vp-cmd-input">
           <SearchIcon />
-          <Command.Input value={query} onValueChange={setQuery} placeholder="搜索文档…" autoFocus />
+          <Command.Input
+            value={query}
+            onValueChange={setQuery}
+            placeholder={locale === 'en' ? 'Search documentation…' : '搜索文档…'}
+            autoFocus
+          />
           <button className="vp-cmd-esc" onClick={() => setOpen(false)}>
             esc
           </button>
         </div>
         <Command.List className="vp-cmd-list">
-          <Command.Empty className="vp-cmd-empty">没有找到结果</Command.Empty>
+          <Command.Empty className="vp-cmd-empty">
+            {locale === 'en' ? 'No results found' : '没有找到结果'}
+          </Command.Empty>
           {results.map((r) => (
             <Command.Item
               key={r.url}

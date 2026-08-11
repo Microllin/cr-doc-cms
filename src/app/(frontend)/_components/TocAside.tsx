@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import type { TocItem } from '../_lib/markdown'
+import type { Locale } from '../_lib/locale'
 
 // 右侧「On this page」目录 + 滚动高亮
 // 用 IntersectionObserver 监听正文标题，滚到哪个高亮哪个 —— VitePress 手感关键
-export function TocAside({ items }: { items: TocItem[] }) {
+export function TocAside({ items, locale }: { items: TocItem[]; locale: Locale }) {
   const [activeId, setActiveId] = useState<string>('')
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export function TocAside({ items }: { items: TocItem[] }) {
   return (
     <aside className="vp-aside">
       <div className="vp-aside-inner">
-        <div className="vp-aside-title">本页目录</div>
+        <div className="vp-aside-title">{locale === 'en' ? 'On this page' : '本页目录'}</div>
         <nav>
           <ul className="vp-toc">
             {items.map((it) => (

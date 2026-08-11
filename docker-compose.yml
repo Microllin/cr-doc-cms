@@ -5,6 +5,8 @@ services:
   db:
     image: postgres:16-alpine
     restart: always
+    # 内存护栏：与 console-v2 同机时，防止 cr-docs 的 DB 峰值挤垮邻居
+    mem_limit: 256m
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-payload}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payload}
@@ -24,7 +26,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # 固定镜像名：本机 build 会打上此 tag；目标机 docker load 同名镜像后，
+    # `docker compose up`（不带 --build）直接复用镜像、不再构建。用 WEB_IMAGE 可覆盖。
+    image: ${WEB_IMAGE:-zenmux-docs-web:latest}
     restart: always
+    # 内存护栏：next start 实测稳态 ~166MB，512m 足够且留峰值余量；
+    # 万一异常膨胀，先撑爆自己被重启，也不许挤占同机的 console-v2。
+    mem_limit: 512m
     depends_on:
       db:
         condition: service_healthy
@@ -32,6 +40,11 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-payload}:${POSTGRES_PASSWORD:-payload}@db:5432/${POSTGRES_DB:-crdocs}
       PAYLOAD_SECRET: ${PAYLOAD_SECRET:?请在 .env 里设置 PAYLOAD_SECRET}
       NODE_ENV: production
+      # 门户跨源读 API 的来源（cors + csrf）
+      PORTAL_ORIGINS: ${PORTAL_ORIGINS:-}
+      # 浏览器打开后台时用的源（仅 csrf）。漏了会导致登录后闪回登录页。
+      # 换域名/换端口/用 IP 访问后台，都要把对应来源加进来。
+      ADMIN_ORIGINS: ${ADMIN_ORIGINS:-http://localhost:${WEB_PORT:-3000}}
     volumes:
       # 用户上传的图片持久化到宿主 ./media（避免容器重建丢失）
       - ./media:/app/media

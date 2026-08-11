@@ -7,3 +7,5 @@ Dockerfile
 docker-compose.yml
 tests
 *.md
+# 交付包/镜像存档（263M + 11M）：不该进构建上下文，更不该进镜像
+*.tar.gz

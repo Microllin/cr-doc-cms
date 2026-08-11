@@ -12,11 +12,13 @@ export function TopNav({
   siteName,
   logoMark,
   logoUrl,
+  availableLocales,
 }: {
   locale: Locale
   siteName: string
   logoMark: string
   logoUrl?: string | null
+  availableLocales?: Locale[]
 }) {
   const pathname = usePathname()
 
@@ -48,14 +50,34 @@ export function TopNav({
           <SearchDialog locale={locale} />
 
           <div className="vp-locale-switch">
-            {LOCALES.map((l) => (
-              <Link key={l} href={switchLocaleHref(l)} className={l === locale ? 'active' : ''}>
-                {l === 'zh' ? '中' : 'EN'}
-              </Link>
-            ))}
+            {LOCALES.map((l) => {
+              const available = l === locale || availableLocales?.includes(l) !== false
+              if (!available) {
+                return (
+                  <span
+                    key={l}
+                    className="disabled"
+                    title={l === 'en' ? '该文档暂无英文版本' : 'This document has no Chinese version'}
+                    aria-disabled="true"
+                  >
+                    {l === 'zh' ? '中' : 'EN'}
+                  </span>
+                )
+              }
+              return (
+                <Link
+                  key={l}
+                  href={switchLocaleHref(l)}
+                  className={l === locale ? 'active' : ''}
+                  prefetch={false}
+                >
+                  {l === 'zh' ? '中' : 'EN'}
+                </Link>
+              )
+            })}
           </div>
 
-          <ThemeToggle />
+          <ThemeToggle locale={locale} />
         </div>
       </div>
     </header>

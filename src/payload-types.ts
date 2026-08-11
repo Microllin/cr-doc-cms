@@ -92,10 +92,16 @@ export interface Config {
   globals: {
     navigation: Navigation;
     settings: Setting;
+    'portal-home': PortalHome;
+    'portal-nav': PortalNav;
+    'portal-footer': PortalFooter;
   };
   globalsSelect: {
     navigation: NavigationSelect<false> | NavigationSelect<true>;
     settings: SettingsSelect<false> | SettingsSelect<true>;
+    'portal-home': PortalHomeSelect<false> | PortalHomeSelect<true>;
+    'portal-nav': PortalNavSelect<false> | PortalNavSelect<true>;
+    'portal-footer': PortalFooterSelect<false> | PortalFooterSelect<true>;
   };
   locale: 'zh' | 'en';
   widgets: {
@@ -126,6 +132,8 @@ export interface UserAuthOperations {
   };
 }
 /**
+ * Accounts that can sign in to the admin panel.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
@@ -151,12 +159,21 @@ export interface User {
   collection: 'users';
 }
 /**
+ * Images used in the docs. Byte-identical images are stored only once.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
   id: number;
+  /**
+   * Shown when the image fails to load; also read by screen readers.
+   */
   alt: string;
+  /**
+   * SHA-256 of the file contents, computed on upload to prevent storing the same image twice.
+   */
+  sha256?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -170,7 +187,7 @@ export interface Media {
   focalY?: number | null;
 }
 /**
- * 文档内容用 Markdown 编写，slug 是访问路径（如 about/intro）。
+ * Content is written in Markdown. The slug is the URL path (e.g. about/intro).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs".
@@ -178,19 +195,19 @@ export interface Media {
 export interface Doc {
   id: number;
   /**
-   * 页面标题，显示在正文顶部与侧边栏。
+   * Shown at the top of the page and in the sidebar.
    */
   title: string;
   /**
-   * 访问路径，如 about/intro（不含语言前缀）。留空则按标题自动生成。
+   * URL path such as about/intro (no language prefix). Generated from the title if left empty.
    */
   slug: string;
   /**
-   * 摘要，用于搜索结果与 SEO。
+   * Used in search results and SEO metadata.
    */
   excerpt?: string | null;
   /**
-   * Markdown 源码。支持 GFM、代码块（Shiki 高亮）、标题自动锚点。
+   * Markdown source. Supports GFM, code blocks (Shiki highlighting) and automatic heading anchors.
    */
   content?: string | null;
   updatedAt: string;
@@ -303,6 +320,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  sha256?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -375,7 +393,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 export interface Navigation {
   id: number;
   /**
-   * 每个分组是侧边栏里一个可折叠的标题，下面挂若干文档。
+   * Each group is a collapsible heading in the sidebar with documents under it.
    */
   groups?:
     | {
@@ -383,7 +401,7 @@ export interface Navigation {
         collapsed?: boolean | null;
         items?:
           | {
-              doc: number | Doc;
+              doc?: (number | null) | Doc;
               id?: string | null;
             }[]
           | null;
@@ -400,25 +418,180 @@ export interface Navigation {
 export interface Setting {
   id: number;
   /**
-   * 显示在左上角 Logo 旁与浏览器标签标题。
+   * Shown next to the logo and in the browser tab title.
    */
   siteName: string;
   /**
-   * Logo 方块里的字母/字，建议 1~2 个字符。未上传 Logo 图片时使用。
+   * One or two characters shown in the logo square when no logo image is uploaded.
    */
   logoMark?: string | null;
   /**
-   * 上传后替代左上角的字母方块（建议高度 32px 左右的 PNG/SVG）。
+   * Replaces the letter square in the top-left corner. PNG/SVG around 32px tall works best.
    */
   logo?: (number | null) | Media;
   /**
-   * 浏览器标签页图标（建议 .ico / .png / .svg，正方形）。
+   * Browser tab icon — a square .ico / .png / .svg.
    */
   favicon?: (number | null) | Media;
   /**
-   * 用于搜索引擎与分享预览。
+   * Used by search engines and link previews.
    */
   description?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "portal-home".
+ */
+export interface PortalHome {
+  id: number;
+  hero?: {
+    badge?: string | null;
+    line1?: string | null;
+    line2?: string | null;
+    subtitle?: string | null;
+    title?: string | null;
+    cta_start?: string | null;
+    cta_demo?: string | null;
+    cta_explore?: string | null;
+    cta_contact?: string | null;
+  };
+  stats?:
+    | {
+        value: string;
+        label: string;
+        id?: string | null;
+      }[]
+    | null;
+  centers?: {
+    title?: string | null;
+    subtitle?: string | null;
+    /**
+     * The key determines the flattened prefix: access / sec / ops
+     */
+    items?:
+      | {
+          /**
+           * For example access / sec / ops; not localized
+           */
+          key: string;
+          tab?: string | null;
+          label?: string | null;
+          desc?: string | null;
+          features?:
+            | {
+                text: string;
+                id?: string | null;
+              }[]
+            | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  values?: {
+    title?: string | null;
+    subtitle?: string | null;
+    items?:
+      | {
+          title: string;
+          desc?: string | null;
+          /**
+           * Optional
+           */
+          desc_long?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  solutions?: {
+    title?: string | null;
+    subtitle?: string | null;
+    items?:
+      | {
+          key: string;
+          title?: string | null;
+          scene?: string | null;
+          solution?: string | null;
+          centers?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  moreProducts?: {
+    title?: string | null;
+    subtitle?: string | null;
+    items?:
+      | {
+          key: string;
+          name?: string | null;
+          desc?: string | null;
+          status?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  quickStart?: {
+    title?: string | null;
+    subtitle?: string | null;
+    steps?:
+      | {
+          title?: string | null;
+          desc?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "portal-nav".
+ */
+export interface PortalNav {
+  id: number;
+  home?: string | null;
+  products?: string | null;
+  pricing?: string | null;
+  about?: string | null;
+  contact?: string | null;
+  login?: string | null;
+  console?: string | null;
+  more_products?: string | null;
+  cloudrouter_hub?: string | null;
+  stage_evaluate?: string | null;
+  stage_access?: string | null;
+  stage_govern?: string | null;
+  stage_scenario?: string | null;
+  stage_worker?: string | null;
+  cloudrouter?: string | null;
+  accesscenter?: string | null;
+  seccenter?: string | null;
+  opscenter?: string | null;
+  modelarena?: string | null;
+  chatportal?: string | null;
+  skillhub?: string | null;
+  devagent?: string | null;
+  vulnhunter?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "portal-footer".
+ */
+export interface PortalFooter {
+  id: number;
+  description?: string | null;
+  products?: string | null;
+  centers?: string | null;
+  more?: string | null;
+  company?: string | null;
+  resources?: string | null;
+  status?: string | null;
+  docs?: string | null;
+  copyright?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -454,6 +627,164 @@ export interface SettingsSelect<T extends boolean = true> {
   logo?: T;
   favicon?: T;
   description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "portal-home_select".
+ */
+export interface PortalHomeSelect<T extends boolean = true> {
+  hero?:
+    | T
+    | {
+        badge?: T;
+        line1?: T;
+        line2?: T;
+        subtitle?: T;
+        title?: T;
+        cta_start?: T;
+        cta_demo?: T;
+        cta_explore?: T;
+        cta_contact?: T;
+      };
+  stats?:
+    | T
+    | {
+        value?: T;
+        label?: T;
+        id?: T;
+      };
+  centers?:
+    | T
+    | {
+        title?: T;
+        subtitle?: T;
+        items?:
+          | T
+          | {
+              key?: T;
+              tab?: T;
+              label?: T;
+              desc?: T;
+              features?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
+              id?: T;
+            };
+      };
+  values?:
+    | T
+    | {
+        title?: T;
+        subtitle?: T;
+        items?:
+          | T
+          | {
+              title?: T;
+              desc?: T;
+              desc_long?: T;
+              id?: T;
+            };
+      };
+  solutions?:
+    | T
+    | {
+        title?: T;
+        subtitle?: T;
+        items?:
+          | T
+          | {
+              key?: T;
+              title?: T;
+              scene?: T;
+              solution?: T;
+              centers?: T;
+              id?: T;
+            };
+      };
+  moreProducts?:
+    | T
+    | {
+        title?: T;
+        subtitle?: T;
+        items?:
+          | T
+          | {
+              key?: T;
+              name?: T;
+              desc?: T;
+              status?: T;
+              id?: T;
+            };
+      };
+  quickStart?:
+    | T
+    | {
+        title?: T;
+        subtitle?: T;
+        steps?:
+          | T
+          | {
+              title?: T;
+              desc?: T;
+              id?: T;
+            };
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "portal-nav_select".
+ */
+export interface PortalNavSelect<T extends boolean = true> {
+  home?: T;
+  products?: T;
+  pricing?: T;
+  about?: T;
+  contact?: T;
+  login?: T;
+  console?: T;
+  more_products?: T;
+  cloudrouter_hub?: T;
+  stage_evaluate?: T;
+  stage_access?: T;
+  stage_govern?: T;
+  stage_scenario?: T;
+  stage_worker?: T;
+  cloudrouter?: T;
+  accesscenter?: T;
+  seccenter?: T;
+  opscenter?: T;
+  modelarena?: T;
+  chatportal?: T;
+  skillhub?: T;
+  devagent?: T;
+  vulnhunter?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "portal-footer_select".
+ */
+export interface PortalFooterSelect<T extends boolean = true> {
+  description?: T;
+  products?: T;
+  centers?: T;
+  more?: T;
+  company?: T;
+  resources?: T;
+  status?: T;
+  docs?: T;
+  copyright?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

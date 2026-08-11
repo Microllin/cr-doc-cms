@@ -1,21 +1,26 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 
 // 深浅色切换按钮（复刻 VitePress 右上角的 appearance 切换）
-export function ThemeToggle() {
+export function ThemeToggle({ locale }: { locale: 'zh' | 'en' }) {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  // 服务端快照为 false，客户端首次订阅后为 true，避免用 effect 同步 setState。
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  )
 
   const isDark = resolvedTheme === 'dark'
+  const label = locale === 'en' ? 'Toggle color theme' : '切换深浅色'
 
   return (
     <button
       className="vp-theme-toggle"
-      aria-label="切换深浅色"
-      title="切换深浅色"
+      aria-label={label}
+      title={label}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
     >
       {mounted && isDark ? <MoonIcon /> : <SunIcon />}

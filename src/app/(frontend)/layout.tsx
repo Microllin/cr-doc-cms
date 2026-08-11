@@ -24,6 +24,8 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
     <html lang="zh" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
+        {/* i18n 热补丁：修复生产环境语言切换失效 */}
+        <script src="/fix-i18n.js" defer />
       </body>
     </html>
   )

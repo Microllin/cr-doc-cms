@@ -54,3 +54,8 @@ node_modules/
 *.sql.gz
 *.tgz
 *.tar
+backup-*.sql
+
+# 打包产物与本地包缓存，不该进版本库
+.pnpm-store/
+*.tar.gz

@@ -13,7 +13,7 @@
 | Docker | Docker Engine 20+，且含 **Compose v2 插件**（`docker compose version` 能出版本） |
 | 权限 | 当前用户能执行 `docker`（否则命令前加 `sudo`，或把用户加入 `docker` 组） |
 | 端口 | 对外端口默认 `8300`，可改（见下）。确认该端口未被占用、防火墙已放行 |
-| 资源 | 约 2C4G 起步；首次构建需联网拉取 npm 依赖 |
+| 资源 | **运行**约 2C2G 起步（`next start` 实测稳态 ~166MB + Postgres）；**构建**（`next build`）峰值吃内存，Node 堆上限设到 8G。低内存机请走 **§1B 镜像模式**：构建只在高配机做一次，部署机不构建 |
 
 自检：
 ```bash
@@ -53,7 +53,71 @@ WEB_PORT=80 ./deploy.sh        # 指定对外端口
 
 ---
 
-## 2. 手动部署（等价于一键脚本，供排查用）
+## 1B. 镜像模式部署（部署机不构建，低内存 / 与他人同机推荐）
+
+`next build` 内存要求高（Node 堆上限 8G），**不适合在低配部署机或已跑着其他服务的机器上构建**。镜像模式把构建挪到高配机做一次，部署机只 `docker load` + 起服务，**全程不 build**。
+
+### 📦 本次交付镜像信息
+
+- **文件**: `cr-docs-image.tar.gz`
+- **大小**: 263MB（解压后 1.5GB）
+- **构建日期**: 2026-07-27
+- **基于分支**: dev (commit 381d8afc9)
+- **包含修复**: 
+  - ✅ Next.js Link `prefetch={false}` - 禁用预取缓存
+  - ✅ i18n 热补丁 `/fix-i18n.js` - 强制硬跳转切换语言
+
+### 部署步骤
+
+**① 部署机（只需 Docker，无需源码/Dockerfile/联网拉依赖）：**
+```bash
+# 1. 加载镜像
+docker load < cr-docs-image.tar.gz
+
+# 2. 验证镜像已加载
+docker images | grep zenmux-docs-web
+# 应该看到: zenmux-docs-web:latest
+
+# 3. 启动服务（会自动创建数据库、运行迁移、导入种子数据）
+./deploy.sh --image
+
+# 指定端口 / 不灌示例：
+WEB_PORT=80 ./deploy.sh --image --no-seed
+```
+
+**② 验证 i18n 修复是否生效：**
+```bash
+# 1. 浏览器访问文档站
+# 2. 打开开发者工具 Console，应该看到：
+#    [i18n-fix] 语言切换补丁已生效
+# 3. 点击右上角语言切换按钮（中/EN）
+# 4. 页面应该完整刷新（地址栏闪一下），内容正确切换
+
+# 或者命令行验证热补丁文件存在：
+curl http://127.0.0.1:8300/fix-i18n.js
+```
+
+### 技术细节
+
+- `docker-compose.yml` 已给 web/db 设**内存护栏** `mem_limit`（web `512m`、db `256m`），与 console-v2 等邻居同机时防止互相挤占。
+- 镜像自包含 `.next` 构建产物、`node_modules`、`payload`/`tsx` CLI 与 `scripts/`，`load` 即用。
+- 部署机若缺镜像，`--image` 会**明确报错**，不会悄悄触发一次超重构建。
+
+### 如果需要重新构建镜像
+
+**构建机（有内存的机器，一次性）：**
+```bash
+./deploy.sh                  # 首次会构建镜像（或 docker compose build web）
+./save-image.sh              # 导出镜像 -> cr-docs-image.tar.gz（gzip 后约 260MB）
+```
+
+**打包交付件（构建机，可选一步到位）：**
+```bash
+tar -cf cr-docs-deploy-$(date +%Y%m%d).tar \
+    cr-docs-image.tar.gz docker-compose.yml deploy.sh .env.example DEPLOY.md
+```
+
+---
 
 ```bash
 cp .env.example .env
@@ -127,6 +191,7 @@ docker compose up -d web
 | 站点是空的 | 未灌内容。跑 `docker compose exec web node_modules/.bin/tsx scripts/seed.ts`，或去 `/admin` 手动录入 |
 | 登录后想改密码 | `/admin` → 右上角用户 → 修改密码 |
 | 端口冲突要换端口 | 改 `.env` 的 `WEB_PORT` 后 `docker compose up -d` |
+| 构建时 `JavaScript heap out of memory` / 部署机内存小 | 别在该机构建，走 **§1B 镜像模式**：高配机构建导出、部署机 `--image` 直接起 |
 
 ---
 
@@ -138,4 +203,6 @@ docker compose up -d web
 ./package.sh                 # 生成 ../cr-docs-deploy-YYYYMMDD.tar.gz
 ```
 
-包内**不含**依赖、构建产物、本机 `.env`、已有图片——对方解压后 `cd` 进目录跑 `./deploy.sh` 即可。
+包内**不含**依赖、构建产物、本机 `.env`、已有图片——对方解压后 `cd` 进目录跑 `./deploy.sh` 即可（对方机器需能构建）。
+
+**低内存 / 不希望对方构建**：改用 **§1B 镜像模式**——本机 `./save-image.sh` 导出镜像，连同 `docker-compose.yml`/`deploy.sh`/`.env.example`/`DEPLOY-IMAGE.txt` 打包，对方 `docker load` + `./deploy.sh --image`。

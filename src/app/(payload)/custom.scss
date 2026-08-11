@@ -1,0 +1,617 @@
+// 后台主题：向前台文档站的设计语言看齐。
+//
+// 背景：Payload 默认主题是一套很平的灰阶 —— 按钮、卡片、pill 全是无边框的浅灰填充，
+// 在白底上几乎看不出边界（「按钮没有框线」）；而前台文档站是 VitePress 那套
+// 靛蓝主色 + 明确描边的样子。两边并排看像两个产品。
+//
+// 这里做三件事：
+//   1. 把前台的调色板（--vp-c-* 那一套）引进来，明暗两套
+//   2. 覆写 Payload 的 --theme-border-color，让全站描边一次性变清晰
+//   3. 给 .btn / .pill / .card 这些「本该有边界」的元素补上描边与 hover
+//
+// 只改观感，不碰 Payload 的 DOM 结构和行为。选择器都取自实际渲染出来的类名。
+
+@function base($n) {
+  @return calc(var(--base) * #{$n});
+}
+
+// ------------------------------------------------------------------ 设计令牌
+:root {
+  // 与 src/app/(frontend)/_styles/vitepress.css 保持同一组值
+  --cr-brand: #3451b2;
+  --cr-brand-hover: #3a5ccc;
+  --cr-brand-light: #5672cd;
+  --cr-brand-soft: rgba(100, 108, 255, 0.14);
+  --cr-border: #e2e2e3;
+  --cr-surface: #f6f6f7;
+  --cr-on-brand: #ffffff;
+}
+
+html[data-theme='dark'] {
+  --cr-brand: #a8b1ff;
+  --cr-brand-hover: #b9c0ff;
+  --cr-brand-light: #5c73e7;
+  --cr-brand-soft: rgba(100, 108, 255, 0.16);
+  --cr-border: #3c3f44;
+  --cr-surface: #202127;
+  // 暗色下主色是浅蓝，压在上面的文字必须转深色，否则糊成一片
+  --cr-on-brand: #1b1b1f;
+}
+
+// Payload 全站描边都走这一个变量，改它等于一次性把所有分隔线调清楚
+:root,
+html[data-theme='dark'] {
+  --theme-border-color: var(--cr-border);
+}
+
+// ------------------------------------------------------ 补上「缺失的框线」
+// Payload 的 pill 按钮（「创建新条目」）与浅色 pill（「列」「过滤条件」「语言环境」）
+// 默认是「浅灰填充 + 无描边」。
+//
+// 注意：只加 border 是不够的 —— 默认填充色是 rgb(221,221,221)，
+// 和描边色 #e2e2e3 几乎同色，边框画上去照样看不见。
+// 必须同时把填充改成透明，让描边成为唯一的边界，这才是前台那种清爽观感。
+.btn--style-pill,
+.pill--style-light {
+  background-color: transparent;
+  border: 1px solid var(--cr-border);
+  transition:
+    border-color 120ms linear,
+    color 120ms linear,
+    background-color 120ms linear;
+
+  &:hover:not(:disabled) {
+    background-color: var(--cr-brand-soft);
+    border-color: var(--cr-brand);
+    color: var(--cr-brand);
+  }
+}
+
+// pill 内部还有一层 .pill__label / .btn__content，背景要一并透传
+.btn--style-pill .btn__content,
+.pill--style-light .pill__label {
+  background-color: transparent;
+}
+
+// 顶栏的「语言环境」切换器也是同一类灰底无框的东西，一并对齐
+.localizer-button {
+  background-color: transparent;
+  border: 1px solid var(--cr-border);
+  border-radius: 4px;
+  transition:
+    border-color 120ms linear,
+    background-color 120ms linear;
+
+  &:hover {
+    background-color: var(--cr-brand-soft);
+    border-color: var(--cr-brand);
+  }
+}
+
+// 主按钮（保存 / 发布）用品牌色，而不是默认的近黑色
+.btn--style-primary .btn__content,
+.btn--style-primary {
+  background-color: var(--cr-brand);
+  border: 1px solid var(--cr-brand);
+  color: var(--cr-on-brand);
+}
+
+.btn--style-primary:hover:not(:disabled) {
+  background-color: var(--cr-brand-hover);
+  border-color: var(--cr-brand-hover);
+}
+
+.btn--style-secondary {
+  border: 1px solid var(--cr-border);
+
+  &:hover:not(:disabled) {
+    border-color: var(--cr-brand);
+    color: var(--cr-brand);
+  }
+}
+
+// 文档编辑页的「编辑 / 版本 / API」标签页。
+// 默认是「选中项灰底、其余纯文字、全都无描边」，看不出是一组可切换的标签。
+.doc-tab {
+  border: 1px solid transparent;
+  border-radius: 5px;
+
+  &:hover:not(.doc-tab--active) {
+    background-color: var(--cr-brand-soft);
+    border-color: var(--cr-brand);
+  }
+
+  &--active {
+    background-color: var(--cr-brand-soft);
+    border-color: var(--cr-brand);
+    color: var(--cr-brand);
+
+    // 选中态用的是 btn--disabled（不可再点自己），别让它被调淡
+    &.btn--disabled {
+      opacity: 1;
+    }
+  }
+}
+
+// ---------------------------------------------------------- 仪表盘集合卡片
+// 默认是无边框的浅灰块，和我们自己加的快捷入口卡片（有边框）并排时最扎眼。
+.card {
+  background: transparent;
+  border: 1px solid var(--cr-border);
+  border-radius: 6px;
+  transition:
+    border-color 120ms linear,
+    background-color 120ms linear;
+
+  &--has-onclick:hover {
+    background: var(--cr-surface);
+    border-color: var(--cr-brand);
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+}
+
+// --------------------------------------------------------------- 左侧导航
+.nav {
+  // 导航与内容之间给一条明确的分界，而不是靠背景色差
+  border-right: 1px solid var(--cr-border);
+
+  // 一级菜单：每项都是一块有边框的独立区域。
+  // Payload 默认是一列纯文字，既没有边界也没有颜色，一眼扫过去分不出
+  // 哪些是可点的条目、哪些是分组标题。
+  &__link {
+    align-items: center;
+    border: 1px solid var(--cr-border);
+    border-radius: 6px;
+    display: flex;
+    margin-bottom: base(0.3);
+    padding: base(0.35) base(0.55);
+    transition:
+      background-color 120ms linear,
+      border-color 120ms linear,
+      color 120ms linear;
+
+    &:hover {
+      background: var(--cr-brand-soft);
+      border-color: var(--cr-brand);
+      color: var(--cr-brand);
+    }
+  }
+
+  // 当前所在页：实心品牌色，和「可点但没在看」的条目拉开层级。
+  //
+  // Payload 不给激活项加 .active 类 —— 它把激活项渲染成 <div>（非激活是 <a>），
+  // 内部多一个 .nav__link-indicator。所以这里靠标签名 + :has() 双保险来命中，
+  // 任一种匹配上都能生效。
+  div.nav__link,
+  .nav__link:has(> .nav__link-indicator) {
+    background: var(--cr-brand);
+    border-color: var(--cr-brand);
+    color: var(--cr-on-brand);
+    font-weight: 600;
+
+    &:hover {
+      background: var(--cr-brand-hover);
+      border-color: var(--cr-brand-hover);
+      color: var(--cr-on-brand);
+    }
+  }
+
+  // 激活项已经整块上色，原来那根细竖条就多余了
+  &__link-indicator {
+    display: none;
+  }
+
+  // 分组标题：弱化成小字标签，让有边框的菜单项成为视觉主体
+  .nav-group__label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    opacity: 0.5;
+    text-transform: uppercase;
+  }
+}
+
+// 我们自己加的「工具 / Markdown 导入」分组：
+// 结构和类名都与原生分组一致，只需补上原生分组由 <button> 提供的那点垂直间距。
+// 水平方向必须留 0 —— 原生标题的左内边距就是 0，给了值就会比其它分组标题右移。
+.cr-nav-group {
+  margin-bottom: base(0.5);
+
+  > .nav-group__label {
+    padding: base(0.25) 0;
+  }
+}
+
+// ------------------------------------------------------- 列表页批量操作
+// 原生的批量操作（编辑 / 发布 / 取消发布 / 删除）挂在列表右上角，是一排纯文字，
+// 没有边框也没有颜色 —— 「删除」和「编辑」长得一模一样，看不出哪个会毁数据。
+//
+// 这些动作已经全部收进常驻工具条（.cr-toolbar），这里把原生那排整个隐藏，
+// 否则同一件事有两个入口、还长得不一样，比只有一个丑的更糟。
+.list-selection {
+  display: none;
+}
+
+// 常驻操作条
+.cr-toolbar {
+  margin-bottom: base(0.75);
+
+  &__row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: base(0.4);
+    border: 1px solid var(--cr-border);
+    border-radius: 6px;
+    padding: base(0.5) base(0.6);
+
+    .btn {
+      margin: 0;
+    }
+  }
+
+  // Payload 的 EditMany 自带一层容器和外边距，拉进工具条后要抹平，
+  // 否则它会比左右两侧的按钮高出一截、基线也对不齐。
+  &__editmany {
+    display: inline-flex;
+
+    .edit-many,
+    .edit-many__toggle {
+      margin: 0;
+    }
+
+    .btn {
+      margin: 0;
+    }
+  }
+
+  &__count {
+    font-size: 0.8rem;
+    margin-right: base(0.3);
+    opacity: 0.7;
+  }
+
+  &__spacer {
+    flex: 1;
+  }
+
+  &__confirm {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: base(0.4);
+
+    strong {
+      color: var(--theme-error-600);
+      font-size: 0.8rem;
+    }
+  }
+
+  &__error {
+    color: var(--theme-error-600);
+    font-size: 0.8rem;
+    margin-top: base(0.4);
+  }
+
+  // 危险操作一律走错误色，和「编辑 / 全选」这类中性动作拉开距离
+  &__danger:not(:disabled) {
+    background: var(--theme-error-500);
+    border-color: var(--theme-error-500);
+    color: #fff;
+
+    &:hover {
+      background: var(--theme-error-600);
+      border-color: var(--theme-error-600);
+    }
+  }
+
+  // 「删除全部」平时只描红边，点开确认后才变成实心红
+  &__danger-outline:not(:disabled) {
+    border-color: var(--theme-error-400);
+    color: var(--theme-error-600);
+
+    &:hover {
+      background: var(--theme-error-100);
+      border-color: var(--theme-error-500);
+      color: var(--theme-error-600);
+    }
+  }
+}
+// ------------------------------------------------------------ 账户头像
+.cr-avatar {
+  align-items: center;
+  background: var(--cr-brand);
+  border-radius: 50%;
+  color: var(--cr-on-brand);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  height: 26px;
+  justify-content: center;
+  line-height: 1;
+  user-select: none;
+  width: 26px;
+}
+
+// ---------------------------------------------------------------- 品牌标识
+.cr-brand {
+  align-items: center;
+  display: inline-flex;
+  gap: base(0.5);
+
+  &__mark {
+    align-items: center;
+    background: var(--cr-brand);
+    border-radius: 6px;
+    color: var(--cr-on-brand);
+    display: inline-flex;
+    flex-shrink: 0;
+    font-weight: 700;
+    justify-content: center;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  &__name {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  &--lg {
+    gap: base(0.75);
+  }
+}
+
+// 面包屑里的图标容器高度有限，别让方块被裁一截
+.step-nav .cr-brand__mark,
+.app-header .cr-brand__mark {
+  font-size: 11px;
+  height: 22px;
+  width: 22px;
+}
+
+// ------------------------------------------------------------ 仪表盘快捷入口
+.cr-quick {
+  margin-bottom: base(1.5);
+
+  &__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin: 0 0 base(0.6);
+    opacity: 0.55;
+    text-transform: uppercase;
+  }
+
+  &__grid {
+    display: grid;
+    gap: base(0.6);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  &__card {
+    align-items: center;
+    border: 1px solid var(--cr-border);
+    border-radius: 6px;
+    color: inherit;
+    display: flex;
+    gap: base(0.6);
+    padding: base(0.75);
+    text-decoration: none;
+    transition:
+      border-color 120ms linear,
+      background-color 120ms linear;
+
+    &:hover {
+      background: var(--cr-surface);
+      border-color: var(--cr-brand);
+
+      .cr-quick__icon {
+        background: var(--cr-brand);
+        color: var(--cr-on-brand);
+      }
+    }
+  }
+
+  &__icon {
+    align-items: center;
+    background: var(--cr-brand-soft);
+    border-radius: 6px;
+    color: var(--cr-brand);
+    display: flex;
+    flex-shrink: 0;
+    height: 34px;
+    justify-content: center;
+    transition:
+      background-color 120ms linear,
+      color 120ms linear;
+    width: 34px;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+
+    strong {
+      font-weight: 600;
+    }
+
+    small {
+      opacity: 0.6;
+    }
+  }
+}
+
+// ------------------------------------------------------------ Markdown 导入页
+.cr-import {
+  margin: 0 auto;
+  max-width: 60rem;
+  padding: base(1.5) base(2);
+  width: 100%;
+
+  &--guest {
+    max-width: 32rem;
+    padding-top: base(4);
+  }
+
+  &__header {
+    margin-bottom: base(1.25);
+
+    h1 {
+      margin: 0 0 base(0.25);
+    }
+
+    p {
+      margin: 0;
+      opacity: 0.7;
+    }
+  }
+}
+
+.cr-card {
+  border: 1px solid var(--cr-border);
+  border-radius: 6px;
+  margin-bottom: base(1);
+  padding: base(1);
+
+  &--error {
+    border-color: var(--theme-error-500);
+    color: var(--theme-error-500);
+  }
+
+  &__title {
+    margin: 0 0 base(0.5);
+  }
+
+  &__row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: base(0.5);
+
+    // Button 自带 margin-bottom，横排时会把行撑歪
+    .btn {
+      margin: 0;
+    }
+  }
+
+  // 选项区：窄屏一列，宽屏自动铺开
+  &__fields {
+    display: grid;
+    gap: 0 base(1);
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    margin-top: base(0.75);
+
+    .field-type {
+      margin-bottom: base(0.5);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: base(0.5);
+    margin-top: base(0.75);
+
+    .btn {
+      margin: 0;
+    }
+  }
+}
+
+.cr-hint {
+  font-size: 0.8rem;
+  line-height: 1.7;
+  margin: base(0.6) 0 0;
+  opacity: 0.7;
+
+  code {
+    margin-right: base(0.4);
+  }
+}
+
+.cr-muted {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.cr-summary {
+  font-size: 0.875rem;
+  line-height: 1.8;
+  margin: 0 0 base(0.75);
+}
+
+.cr-error-text {
+  color: var(--theme-error-500);
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+// 结果表：窄屏横向滚动，别把整页撑宽
+.cr-table-wrap {
+  overflow-x: auto;
+}
+
+.cr-table {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  width: 100%;
+
+  th {
+    border-bottom: 1px solid var(--cr-border);
+    font-weight: 600;
+    opacity: 0.7;
+    padding: base(0.4) base(0.5);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  td {
+    border-bottom: 1px solid var(--cr-border);
+    padding: base(0.4) base(0.5);
+    vertical-align: top;
+  }
+}
+
+// 结果状态：用主题色，暗色下不刺眼
+.cr-badge {
+  border-radius: 3px;
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  white-space: nowrap;
+
+  &--created {
+    background: var(--theme-success-100);
+    color: var(--theme-success-600);
+  }
+
+  &--updated {
+    background: var(--cr-brand-soft);
+    color: var(--cr-brand);
+  }
+
+  &--skipped {
+    background: var(--cr-surface);
+    color: var(--theme-elevation-500);
+  }
+
+  &--failed {
+    background: var(--theme-error-100);
+    color: var(--theme-error-600);
+  }
+}
+
+// 藏起来但仍可被 ref.click() 触发的原生 file input
+.cr-visually-hidden {
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}

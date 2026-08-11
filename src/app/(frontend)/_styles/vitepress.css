@@ -181,6 +181,13 @@ a:hover {
   text-decoration: none;
   background: var(--vp-c-bg-soft);
 }
+.vp-locale-switch .disabled {
+  padding: 5px 10px;
+  font-size: 13px;
+  color: var(--vp-c-text-3);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .vp-locale-switch a.active {
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
@@ -221,6 +228,25 @@ a:hover {
 }
 .vp-sidebar-group {
   margin-bottom: 16px;
+}
+/* 子目录：靠缩进 + 左侧细线表达层级，字号逐级收小。
+   导入整个文件夹时目录可能有两三层，全都顶格排会看不出从属关系。 */
+.vp-sidebar-group--d1,
+.vp-sidebar-group--d2,
+.vp-sidebar-group--d3 {
+  border-left: 1px solid var(--vp-c-divider);
+  margin-bottom: 8px;
+  padding-left: 10px;
+}
+.vp-sidebar-group--d1 > .vp-sidebar-heading {
+  font-size: 13px;
+  font-weight: 600;
+}
+.vp-sidebar-group--d2 > .vp-sidebar-heading,
+.vp-sidebar-group--d3 > .vp-sidebar-heading {
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 .vp-sidebar-heading {
   display: flex;

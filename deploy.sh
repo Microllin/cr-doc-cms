@@ -11,6 +11,7 @@
 #   WEB_PORT=80 ./deploy.sh      # 指定对外端口
 #   ./deploy.sh --no-seed        # 只建空站，不灌示例文档
 #   ./deploy.sh --rebuild        # 强制重新构建镜像（改过代码后用）
+#   ./deploy.sh --image          # 不构建，直接用已 docker load 的镜像起（部署机推荐）
 # =============================================================================
 set -euo pipefail
 
@@ -23,7 +24,8 @@ for arg in "$@"; do
   case "$arg" in
     --no-seed)  DO_SEED=0 ;;
     --rebuild)  BUILD_FLAG="--build --no-cache" ;;
-    -h|--help)  sed -n '2,20p' "$0"; exit 0 ;;
+    --image)    BUILD_FLAG="" ;;   # 镜像模式：跳过构建，用本地已有/已 load 的镜像
+    -h|--help)  sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "未知参数：$arg（-h 看帮助）" >&2; exit 1 ;;
   esac
 done
@@ -64,7 +66,15 @@ ADMIN_EMAIL="$(grep -E '^SEED_ADMIN_EMAIL=' .env | tail -1 | cut -d= -f2)"; ADMI
 ADMIN_PW="$(grep -E '^SEED_ADMIN_PASSWORD=' .env | tail -1 | cut -d= -f2)"; ADMIN_PW="${ADMIN_PW:-changeme123}"
 
 # ---- 3. 构建并启动 ----
-log "构建镜像并启动容器（Postgres + Web）……首次构建约数分钟。"
+if [ -z "$BUILD_FLAG" ]; then
+  log "镜像模式：用本地已有镜像启动容器（Postgres + Web），不构建。"
+  # 镜像模式下若本地缺镜像，提前明确报错，而非悄悄触发一次超重的构建
+  IMG="$(grep -E '^WEB_IMAGE=' .env 2>/dev/null | tail -1 | cut -d= -f2)"; IMG="${IMG:-zenmux-docs-web:latest}"
+  docker image inspect "$IMG" >/dev/null 2>&1 || \
+    die "镜像模式需要本地已有镜像 ${IMG}。请先在构建机导出、在本机执行：docker load < cr-docs-image.tar.gz"
+else
+  log "构建镜像并启动容器（Postgres + Web）……首次构建约数分钟。"
+fi
 # shellcheck disable=SC2086
 docker compose up -d $BUILD_FLAG
 

@@ -10,13 +10,18 @@ export async function GET(req: NextRequest) {
   const payload = await getPayloadClient()
   const res = await payload.find({
     collection: 'docs',
+    // 只索引已发布的：否则草稿内容会通过搜索框泄露出去
+    where: { _status: { equals: 'published' } },
     locale,
+    fallbackLocale: false,
     limit: 1000,
     depth: 0,
     pagination: false,
   })
 
-  const index = res.docs.map((d) => {
+  const index = res.docs
+    .filter((d) => d.title && d.content)
+    .map((d) => {
     const doc = d as Doc
     // 从 Markdown 里抽出标题文本，参与搜索
     const headings = (doc.content || '')
@@ -32,7 +37,7 @@ export async function GET(req: NextRequest) {
       headings,
       excerpt: doc.excerpt || '',
     }
-  })
+    })
 
   return NextResponse.json(index)
 }
