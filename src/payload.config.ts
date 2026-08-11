@@ -12,23 +12,12 @@ import { Media } from './collections/Media'
 import { Docs } from './collections/Docs'
 import { Navigation } from './globals/Navigation'
 import { Settings } from './globals/Settings'
-import { PortalHome } from './globals/portal/Home'
-import { PortalNav } from './globals/portal/Nav'
-import { PortalFooter } from './globals/portal/Footer'
+import { bulkDocStatusEndpoint } from './endpoints/bulkDocStatus'
 import { importMarkdownEndpoint } from './endpoints/importMarkdown'
 import { customTranslations } from './i18n/custom'
 
-// 门户（Nuxt）跨源消费本 CMS 的 REST API，需放行其来源。
-// 生产用 PORTAL_ORIGINS（逗号分隔）覆盖，默认含本地开发端口。
-const portalOrigins = (process.env.PORTAL_ORIGINS || 'http://localhost:3000')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean)
-
 // csrf 必须包含「你在浏览器里打开后台时用的那个源」，否则登录成功后 cookie
 // 不被认，表现为「闪一下又弹回登录页」（/api/users/me 返回 user:null）。
-// 之前 csrf 只有 portalOrigins，后台跑在 :8300 却不在名单里，后台整个进不去。
-//
 // ADMIN_ORIGINS=* 表示不限制来源（等同于 2026-07-27 之前没有 csrf 配置时的行为）。
 // 用 IP / 域名 / 端口转发等多种方式访问后台时，逐一枚举来源很容易漏，
 // 漏了就是"登录不进去"，排查成本远高于收益，所以给一个明确的放开开关。
@@ -41,14 +30,13 @@ const adminOrigins = (process.env.ADMIN_ORIGINS || 'http://localhost:8300')
   .filter(Boolean)
 
 const allowAnyAdminOrigin = adminOrigins.includes('*')
-const csrfOrigins = Array.from(new Set([...portalOrigins, ...adminOrigins]))
+const csrfOrigins = Array.from(new Set(adminOrigins))
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 export default buildConfig({
   serverURL: process.env.PAYLOAD_PUBLIC_SERVER_URL || undefined,
-  cors: portalOrigins,
   // undefined = 不做来源限制（ADMIN_ORIGINS=* 时）
   csrf: allowAnyAdminOrigin ? undefined : csrfOrigins,
   admin: {
@@ -88,9 +76,9 @@ export default buildConfig({
     },
   },
   // 自定义端点：Markdown 导入（图片自动入库 + 引用重写）
-  endpoints: [importMarkdownEndpoint],
+  endpoints: [importMarkdownEndpoint, bulkDocStatusEndpoint],
   collections: [Users, Media, Docs],
-  globals: [Navigation, Settings, PortalHome, PortalNav, PortalFooter],
+  globals: [Navigation, Settings],
   // 多语言：中文默认 + 英文，缺失时回退到默认语言
   localization: {
     locales: [

@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { LOCALES, type Locale } from '../_lib/locale'
 import { SearchDialog } from './SearchDialog'
 import { ThemeToggle } from './ThemeToggle'
@@ -12,26 +11,14 @@ export function TopNav({
   siteName,
   logoMark,
   logoUrl,
-  availableLocales,
+  localeLinks,
 }: {
   locale: Locale
   siteName: string
   logoMark: string
   logoUrl?: string | null
-  availableLocales?: Locale[]
+  localeLinks?: Partial<Record<Locale, string>>
 }) {
-  const pathname = usePathname()
-
-  // 语言切换：把路径里的 locale 段替换掉，停留在同一页
-  function switchLocaleHref(target: Locale) {
-    const parts = pathname.split('/').filter(Boolean) // ['docs','zh','guide','intro']
-    if (parts[0] === 'docs') {
-      if (LOCALES.includes(parts[1] as Locale)) parts[1] = target
-      else parts.splice(1, 0, target)
-      return '/' + parts.join('/')
-    }
-    return `/docs/${target}`
-  }
 
   return (
     <header className="vp-nav">
@@ -51,7 +38,8 @@ export function TopNav({
 
           <div className="vp-locale-switch">
             {LOCALES.map((l) => {
-              const available = l === locale || availableLocales?.includes(l) !== false
+              const href = localeLinks ? localeLinks[l] || null : `/docs/${l}`
+              const available = href !== null
               if (!available) {
                 return (
                   <span
@@ -67,7 +55,7 @@ export function TopNav({
               return (
                 <Link
                   key={l}
-                  href={switchLocaleHref(l)}
+                  href={href!}
                   className={l === locale ? 'active' : ''}
                   prefetch={false}
                 >

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Button, SelectInput, TextInput, useTranslation } from '@payloadcms/ui'
+import { Button, SelectInput, TextInput, useLocale, useTranslation } from '@payloadcms/ui'
 
 import type { CustomTranslationsKeys, CustomTranslationsObject } from '@/i18n/custom'
 
@@ -70,12 +70,13 @@ function autoCommonRoot(paths: string[]): string {
   return paths.every((p) => p.startsWith(`${root}/`)) ? root : ''
 }
 
-export function ImportMarkdownForm({ initialLocale = 'zh' }: { initialLocale?: string }) {
+export function ImportMarkdownForm() {
   const { t } = useTranslation<CustomTranslationsObject, CustomTranslationsKeys>()
+  const adminLocale = useLocale()
 
   const [files, setFiles] = useState<File[]>([])
-  // 跟随后台当前的内容语言，避免在 English 环境中把英文 Markdown 写进中文字段。
-  const [locale, setLocale] = useState(initialLocale === 'en' ? 'en' : 'zh')
+  // 只使用 Payload 后台顶部的内容语言，不再提供第二个可能互相冲突的语言选择器。
+  const locale = adminLocale?.code === 'en' ? 'en' : 'zh'
   // 导入默认先进入草稿，检查内容、图片和链接后再从文档列表发布。
   const [status, setStatus] = useState<ImportStatus>('draft')
   const [onExisting, setOnExisting] = useState('update')
@@ -221,20 +222,20 @@ export function ImportMarkdownForm({ initialLocale = 'zh' }: { initialLocale?: s
         <p className="cr-hint">{t('crDocs:pickHint')}</p>
 
         <div className="cr-card__fields">
-          <SelectInput
-            isClearable={false}
-            label={t('crDocs:fieldLocale')}
-            name="locale"
-            onChange={(opt) =>
-              setLocale((opt as { value?: string })?.value === 'en' ? 'en' : 'zh')
-            }
-            options={[
-              { label: '中文', value: 'zh' },
-              { label: 'English', value: 'en' },
-            ]}
-            path="locale"
-            value={locale}
-          />
+          <div className="field-type text" id="field-locale">
+            <div className="field-label">{t('crDocs:fieldLocale')}</div>
+            <div
+              className="cr-import__locale value-container"
+              title={locale === 'en' ? 'English' : '中文'}
+            >
+              {locale === 'en' ? 'English' : '中文'}
+              <span className="cr-muted">
+                {locale === 'en'
+                  ? ' (follows the admin content locale)'
+                  : '（跟随后台顶部内容语言）'}
+              </span>
+            </div>
+          </div>
           <SelectInput
             isClearable={false}
             label={t('crDocs:fieldStatus')}

@@ -61,15 +61,15 @@ if [ -n "${WEB_PORT:-}" ]; then
 fi
 
 # 从 .env 读取生效值
-PORT="$(grep -E '^WEB_PORT=' .env | tail -1 | cut -d= -f2)"; PORT="${PORT:-3000}"
-ADMIN_EMAIL="$(grep -E '^SEED_ADMIN_EMAIL=' .env | tail -1 | cut -d= -f2)"; ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
-ADMIN_PW="$(grep -E '^SEED_ADMIN_PASSWORD=' .env | tail -1 | cut -d= -f2)"; ADMIN_PW="${ADMIN_PW:-changeme123}"
+PORT="$(grep -E '^WEB_PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2 || true)"; PORT="${PORT:-3000}"
+ADMIN_EMAIL="$(grep -E '^SEED_ADMIN_EMAIL=' .env 2>/dev/null | tail -1 | cut -d= -f2 || true)"; ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
+ADMIN_PW="$(grep -E '^SEED_ADMIN_PASSWORD=' .env 2>/dev/null | tail -1 | cut -d= -f2 || true)"; ADMIN_PW="${ADMIN_PW:-changeme123}"
 
 # ---- 3. 构建并启动 ----
 if [ -z "$BUILD_FLAG" ]; then
   log "镜像模式：用本地已有镜像启动容器（Postgres + Web），不构建。"
   # 镜像模式下若本地缺镜像，提前明确报错，而非悄悄触发一次超重的构建
-  IMG="$(grep -E '^WEB_IMAGE=' .env 2>/dev/null | tail -1 | cut -d= -f2)"; IMG="${IMG:-zenmux-docs-web:latest}"
+  IMG="$(grep -E '^WEB_IMAGE=' .env 2>/dev/null | tail -1 | cut -d= -f2 || true)"; IMG="${IMG:-zenmux-docs-web:latest}"
   docker image inspect "$IMG" >/dev/null 2>&1 || \
     die "镜像模式需要本地已有镜像 ${IMG}。请先在构建机导出、在本机执行：docker load < cr-docs-image.tar.gz"
 else

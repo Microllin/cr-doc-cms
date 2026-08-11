@@ -5,6 +5,7 @@ import * as migration_20260806_000000_add_media_sha256 from './20260806_000000_a
 import * as migration_20260806_010000_fix_nav_doc_nullable from './20260806_010000_fix_nav_doc_nullable';
 import * as migration_20260806_170113_add_portal_globals from './20260806_170113_add_portal_globals';
 import * as migration_20260807_000000_media_sha256_unique from './20260807_000000_media_sha256_unique';
+import * as migration_20260811_030615_remove_portal_globals from './20260811_030615_remove_portal_globals';
 
 export const migrations = [
   {
@@ -35,11 +36,16 @@ export const migrations = [
   {
     up: migration_20260806_170113_add_portal_globals.up,
     down: migration_20260806_170113_add_portal_globals.down,
-    name: '20260806_170113_add_portal_globals'
+    name: '20260806_170113_add_portal_globals',
   },
   {
     up: migration_20260807_000000_media_sha256_unique.up,
     down: migration_20260807_000000_media_sha256_unique.down,
     name: '20260807_000000_media_sha256_unique',
+  },
+  {
+    up: migration_20260811_030615_remove_portal_globals.up,
+    down: migration_20260811_030615_remove_portal_globals.down,
+    name: '20260811_030615_remove_portal_globals'
   },
 ];

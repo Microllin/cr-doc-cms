@@ -50,6 +50,9 @@ export const Docs: CollectionConfig = {
       localized: true,
       label: { zh: '标题', en: 'Title' },
       admin: {
+        components: {
+          Cell: '/components/admin/DocTitleCell#DocTitleCell',
+        },
         description: {
           zh: '页面标题，显示在正文顶部与侧边栏。',
           en: 'Shown at the top of the page and in the sidebar.',

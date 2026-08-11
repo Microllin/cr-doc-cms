@@ -1,157 +1,460 @@
-# CR Docs — 基于 Payload CMS 的 VitePress 风格动态文档站
+# CR Docs
 
-用 **Payload CMS v3**（后台 + 数据）驱动一个 **VitePress 观感** 的文档前台：
-三栏布局、左导航树、右侧目录滚动高亮、Shiki 代码高亮、深浅色、`Ctrl/⌘+K` 搜索、上/下翻页。
+基于 **Payload CMS 3、Next.js 16 和 PostgreSQL** 的自托管动态文档站。
 
-内容存 **PostgreSQL**，用 **Markdown** 编写，在 `/admin` 可视化后台在线编辑，即改即生效。
+CR Docs 提供 Markdown 内容管理后台和 VitePress 风格阅读前台。文档保存在 PostgreSQL，编辑或发布后无需重新构建站点；支持中英文内容、草稿审核、文件夹批量导入、图片自动入库、全文搜索、深浅主题和层级导航。
+
+> 本仓库只包含文档站和文档管理后台，不包含其他产品门户或门户内容管理功能。
+
+## 功能
+
+### 文档前台
+
+- VitePress 风格三栏布局：侧边栏、正文、页内目录
+- GFM Markdown、表格、任务列表和代码块
+- Shiki 双主题代码高亮
+- 标题锚点与右侧 TOC
+- 上一篇 / 下一篇导航
+- `Ctrl/⌘ + K` 本地全文搜索
+- 深色 / 浅色主题
+- 中文和英文站点
+- 缺少目标语言内容时禁用语言入口，不使用中文冒充英文
+- 文档删除或取消发布后，旧地址返回当前语言文档首页
+- 空数据库和全部取消发布时显示正常空状态
+
+### 管理后台
+
+- Payload CMS 管理后台：`/admin`
+- Markdown 在线编辑
+- 草稿、发布、取消发布和版本记录
+- 文档、媒体、侧边栏导航和站点设置
+- 中英文内容语言与后台界面语言同步切换
+- 批量发布、取消发布和删除
+- Markdown 单文件或整个文件夹导入
+
+### Markdown 导入
+
+导入器支持：
+
+- `.md` 和 `.markdown`
+- 选择多个文件或整个文件夹
+- 保留目录结构并生成层级 slug
+- 自动剥离所选文件夹的公共根目录
+- 解析 `title`、`slug` 和 `excerpt` frontmatter
+- 自动提取第一个一级标题作为标题
+- 自动上传并重写本地图片引用
+- 按 SHA-256 复用相同图片
+- 重写相对 `.md` 链接为文档站 URL
+- Unicode 文件名和 slug
+- 预演模式，不写入数据库
+- 已有 slug 可选择覆盖或跳过
+- 单篇失败不影响同批其他文档
+- 文档写入失败时补偿删除本篇新建媒体
+
+**导入默认始终为草稿。** 只有在表单中明确选择“已发布”，文档才会直接上线。文件夹导入和单文件导入遵循相同规则。
+
+根目录的 `README.md` 或 `index.md` 会映射为 `index`；目录内的 `guide/README.md` 会映射为 `guide`。同一批次中若多个文件生成相同 slug，导入器会明确报错，不会静默覆盖。
 
 ## 技术栈
 
-| 层 | 选型 |
-|---|---|
-| 后台 + API | Payload CMS 3（Next.js 原生，自带 React admin） |
-| 前端 | Next.js 16 App Router（同一应用内自研三栏文档 UI） |
-| 数据库 | PostgreSQL 16（`@payloadcms/db-postgres`） |
-| Markdown | `unified` + `remark-gfm` + `rehype-slug`/`autolink-headings` |
-| 代码高亮 | Shiki（`rehype-pretty-code`，双主题 github-light/dark） |
-| 搜索 | `cmdk` + `minisearch`（VitePress 本地搜索同款引擎） |
-| 深浅色 | `next-themes` |
+| 层 | 技术 |
+| --- | --- |
+| Web 与管理后台 | Next.js 16 App Router、React 19、Payload CMS 3 |
+| 数据库 | PostgreSQL 16、`@payloadcms/db-postgres` |
+| Markdown | unified、remark-gfm、rehype |
+| 代码高亮 | Shiki、rehype-pretty-code |
+| 搜索 | MiniSearch、cmdk |
+| 主题 | next-themes |
+| 测试 | Vitest、Playwright |
+| 部署 | Docker、Docker Compose v2 |
 
-## 目录结构
+## 项目结构
 
-```
+```text
 src/
-  collections/Docs.ts        # Markdown 文档集合（drafts + i18n）
-  globals/Navigation.ts      # 侧边栏导航树（对应 VitePress sidebar）
-  globals/Settings.ts        # 站点设置（站点名/Logo/描述，后台可改）
-  migrations/                # Payload/Drizzle 迁移（生产建表）
-  app/(payload)/             # Payload 后台 /admin 与 API /api（脚手架自带）
-  app/(frontend)/            # VitePress 风格前台
-    docs/[[...slug]]/page.tsx  # 三栏文档页（核心）
-    search-index/route.ts      # 搜索索引接口
-    _components/               # TopNav / Sidebar / TocAside / Pager / SearchDialog / ThemeToggle
-    _lib/                      # locale.ts（纯常量）/ nav.ts（Payload 数据）/ markdown.ts（渲染）
-    _styles/vitepress.css      # 复刻 VitePress 主题
-scripts/seed.ts              # 种子数据（管理员 + 示例文档 + 导航）
-scripts/set-nav.ts           # 按 slug 前缀批量配置侧边栏分组
-scripts/fix-links.ts         # 把 Markdown 里 .md 相对链接重写为站点 URL
-deploy.sh                    # 一键部署（校验/建 .env/build/起服务/建表/灌示例）
-package.sh                   # 打包干净源码交付包（cr-docs-deploy-*.tar.gz）
-DEPLOY.md                    # 面向交付实施的现场部署说明
+├── app/
+│   ├── (frontend)/                 # 文档前台
+│   │   ├── docs/[[...slug]]/       # 动态文档路由
+│   │   ├── search-index/           # 已发布文档搜索索引
+│   │   ├── _components/            # 导航、搜索、TOC、翻页、主题
+│   │   └── _lib/                   # Markdown、locale、导航查询
+│   └── (payload)/                  # Payload 后台和 API
+├── collections/
+│   ├── Docs.ts                     # 文档、草稿、localized 字段
+│   ├── Media.ts                    # 图片与 SHA-256 去重
+│   └── Users.ts                    # 后台用户
+├── globals/
+│   ├── Navigation.ts               # 侧边栏结构
+│   └── Settings.ts                 # 站点名称、Logo、favicon、SEO
+├── components/                     # Markdown 导入和后台扩展
+├── endpoints/importMarkdown.ts     # Markdown 导入 API
+├── migrations/                     # 生产数据库迁移
+└── payload.config.ts               # Payload 配置
+
+scripts/
+├── seed.ts                         # 管理员、示例文档和导航
+└── qa-test.sh                      # 隔离数据库全链路 QA
+
+deploy.sh                           # Docker Compose 部署
+save-image.sh                       # 导出预构建镜像
+Dockerfile
+docker-compose.yml
 ```
+
+## 环境要求
+
+### 本地开发
+
+- Node.js `18.20.2+`，推荐 Node.js 22
+- pnpm 9、10 或 11
+- PostgreSQL 16
+- Docker（可选，用于启动 PostgreSQL 和运行完整 QA）
+
+### 生产部署
+
+- Linux
+- Docker Engine
+- Docker Compose v2，命令为 `docker compose`
+- 默认运行资源限制：
+  - Web：512 MB
+  - PostgreSQL：256 MB
+
+Next.js 构建需要明显高于运行阶段的内存。低资源部署机应使用[预构建镜像部署](#预构建镜像部署部署机不-build)。
 
 ## 本地开发
 
-```bash
-# 1. 起一个本地 Postgres（或用你自己的）
-docker run -d --name crdocs-pg -e POSTGRES_USER=payload -e POSTGRES_PASSWORD=payload \
-  -e POSTGRES_DB=crdocs -p 5432:5432 postgres:16-alpine
-
-# 2. 配置环境变量
-cp .env.example .env      # 必改 PAYLOAD_SECRET（openssl rand -hex 32）
-
-# 3. 安装依赖并灌入示例数据
-pnpm install
-pnpm tsx scripts/seed.ts  # 创建管理员 + 3 篇示例文档（账号密码见下方“种子账号”）
-
-# 4. 启动
-pnpm dev
-```
-
-- 前台：http://localhost:3000/docs/zh
-- 后台：http://localhost:3000/admin
-
-### 种子账号
-
-`scripts/seed.ts` 创建的管理员账号**从环境变量读取**，默认值仅供首次登录：
-
-| 变量 | 默认值 |
-|---|---|
-| `SEED_ADMIN_EMAIL` | `admin@example.com` |
-| `SEED_ADMIN_PASSWORD` | `changeme123` |
-
-> ⚠️ 登录后**务必立刻在后台改密码**，或部署前用上述环境变量设置成你自己的强密码。切勿在生产使用默认值。
-
-## 编辑内容
-
-1. 登录 `/admin`。
-2. 在「文档」里新建/编辑：`title`、`slug`（如 `guide/install`）、`content`（Markdown）。
-3. 在「侧边栏导航」里把文档拖进分组，决定左栏结构与上/下页顺序。
-4. 在「站点设置」里改站点名称 / Logo / 描述。
-
-## 生产部署（Docker Compose 自托管）
-
-> 交付实施同事请直接看 [`DEPLOY.md`](./DEPLOY.md)（现场部署说明，含前置要求 / 验证 / FAQ）。
-
-### 一键部署（推荐）
+### 1. 启动 PostgreSQL
 
 ```bash
-./deploy.sh                 # 默认端口 8300，自带 Postgres，灌 3 篇示例文档
-WEB_PORT=80 ./deploy.sh     # 指定对外端口
-./deploy.sh --no-seed       # 只建空站，不灌示例
+docker run -d \
+  --name crdocs-pg \
+  -e POSTGRES_USER=payload \
+  -e POSTGRES_PASSWORD=payload \
+  -e POSTGRES_DB=crdocs \
+  -p 5432:5432 \
+  postgres:16-alpine
 ```
 
-脚本自动完成：校验环境 → 生成 `.env` 与随机 `PAYLOAD_SECRET` → 构建镜像 → 起 Postgres + Web → 建表 → 灌示例 → 打印访问地址与管理员账号。
-容器 / 卷 / 网络统一命名为 `cr-docs-*`（compose 项目名固定为 `cr-docs`）。
-
-### 或手动部署
+### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
-# 必改：PAYLOAD_SECRET=<openssl rand -hex 32>；按需改 POSTGRES_* / WEB_PORT
-# 建议：SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD 设成你自己的
-
-docker compose up -d --build
+openssl rand -hex 32
 ```
 
-- 启动时容器自动执行 `payload migrate` 建表。
-- 前台：`http://<服务器>:${WEB_PORT}/docs/zh`
-- 后台：`http://<服务器>:${WEB_PORT}/admin`
-- 数据持久化在 `pgdata` 数据卷；上传的图片持久化在宿主 `./media`。
+编辑 `.env`，至少确认：
 
-首次部署后进 `/admin` 注册第一个管理员，或在容器内跑种子脚本：
-
-```bash
-docker compose exec web node_modules/.bin/tsx scripts/seed.ts
+```dotenv
+DATABASE_URL=postgres://payload:payload@localhost:5432/crdocs
+PAYLOAD_SECRET=替换成上一步生成的随机值
+ADMIN_ORIGINS=http://localhost:3000
+SEED_ADMIN_EMAIL=admin@example.com
+SEED_ADMIN_PASSWORD=请设置强密码
 ```
 
-### 打包交付给下一手
+### 3. 安装、迁移和初始化
 
 ```bash
-./package.sh                # 生成 ../cr-docs-deploy-YYYYMMDD.tar.gz（干净源码包）
+pnpm install --frozen-lockfile
+pnpm payload migrate
+pnpm tsx scripts/seed.ts
 ```
 
-排除依赖 / 构建产物 / 本机 `.env` / 已有图片。对方解压后 `cd` 进目录跑 `./deploy.sh` 即可。
+`seed.ts` 是幂等的，会在缺少管理员时创建管理员，并写入三篇示例文档和侧边栏导航。
 
-## ⚠️ 本仓库不含的内容（部署前须知）
-
-为避免体积与隐私问题，以下内容**没有提交到仓库**，全新部署时需自行准备：
-
-1. **文档内容不在代码里** —— 所有文档存 PostgreSQL 数据库。全新 `docker compose up` 后是**空站**，需要：
-   - 跑 `scripts/seed.ts` 灌示例，或
-   - 从已有环境用 `pg_dump` 迁移数据，或
-   - 直接在后台 `/admin` 手动录入。
-2. **图片（media）不在仓库里** —— 上传的图片存宿主 `./media` 目录（`.gitignore` 已排除）。迁移站点时需把 `./media` 目录一并拷贝到新机器的同名目录下（compose 已把它挂载进容器）。
-
-### 迁移已有站点到新机器
+### 4. 启动开发服务器
 
 ```bash
-# 源机器：导出数据库 + 打包图片
-docker compose exec -T db pg_dump -U payload -d crdocs --clean --if-exists | gzip > dump.sql.gz
-tar czf media.tgz media
+pnpm dev
+```
 
-# 目标机器：clone 仓库、放好 .env，先起 db，恢复数据 + 图片，再起 web
+- 文档前台：<http://localhost:3000/docs/zh>
+- 管理后台：<http://localhost:3000/admin>
+
+首次登录后请立即修改管理员密码。
+
+## 内容模型
+
+### 文档
+
+| 字段 | 说明 |
+| --- | --- |
+| `title` | 页面标题，中英文独立 |
+| `slug` | URL 路径，不包含语言前缀，例如 `guide/install` |
+| `excerpt` | 搜索结果和 SEO 摘要，中英文独立 |
+| `content` | Markdown 正文，中英文独立 |
+| `_status` | `draft` 或 `published` |
+
+Payload 的 `_status` 属于整条文档，而不是每种语言分别拥有状态。给一篇已发布文档导入某语言的草稿，会让整篇文档进入草稿状态，避免尚未审核的翻译直接公开。
+
+### 侧边栏
+
+“侧边栏导航”可以手工编排分组和顺序。未加入手工导航的已发布文档不会丢失，前台会按照 slug 目录自动补入导航。
+
+### 媒体
+
+上传文件保存在宿主机 `./media`，数据库保存媒体记录。内容完全相同的图片通过 SHA-256 唯一索引复用。
+
+## 常用命令
+
+```bash
+pnpm dev                         # 开发服务器
+pnpm build                       # 生产构建
+pnpm start                       # 启动生产构建
+pnpm lint                        # ESLint
+pnpm test:int                    # Vitest 逻辑和接口测试
+pnpm test:e2e                    # Playwright；需准备站点和数据库
+pnpm test:qa                     # 推荐：完整隔离 QA
+pnpm generate:types              # 重新生成 Payload TypeScript 类型
+pnpm generate:importmap          # 重新生成后台 import map
+pnpm payload migrate             # 执行数据库迁移
+pnpm payload migrate:create 名称 # 创建迁移
+```
+
+## 完整 QA
+
+推荐在提交或交付前运行：
+
+```bash
+pnpm test:qa
+```
+
+脚本会自动：
+
+1. 创建隔离 PostgreSQL 容器；
+2. 执行全部 migrations；
+3. 写入种子数据；
+4. 执行 TypeScript 和 ESLint；
+5. 执行全部 Vitest 和真实 Payload API 测试；
+6. 启动测试站点；
+7. 串行执行 Chromium E2E；
+8. 停止开发服务器；
+9. 执行 production build；
+10. 删除测试容器和进程。
+
+测试不会连接或修改开发、测试以外的数据库。涉及发布、删除和空站的破坏性 E2E 只允许在隔离 QA 环境运行。
+
+当前覆盖包括：后台登录和语言切换、导入鉴权、单文件和文件夹导入、默认草稿、显式发布、图片和异常边界、中英文缺失处理、搜索、导航、取消发布、删除和空站。
+
+## Docker 部署
+
+### 从源码构建
+
+适合资源充足的构建机：
+
+```bash
+cp .env.example .env
+# 编辑 .env，至少修改 PAYLOAD_SECRET、POSTGRES_PASSWORD 和管理员密码
+
+./deploy.sh --no-seed
+```
+
+常用方式：
+
+```bash
+./deploy.sh                  # 构建并启动，写入示例数据
+./deploy.sh --no-seed        # 构建并启动空站
+./deploy.sh --rebuild        # 无缓存重新构建
+WEB_PORT=80 ./deploy.sh      # 指定端口
+```
+
+Web 容器启动时会先执行 `payload migrate`，成功后再运行 `next start`。
+
+### 预构建镜像部署（部署机不 build）
+
+这是低内存部署机的推荐方式。
+
+#### 在构建机生成镜像
+
+```bash
+cd /path/to/CR-docs
+
+# 必须先基于当前源码重新构建
+docker compose build web
+
+# 导出 zenmux-docs-web:latest
+./save-image.sh
+
+# 生成完整性校验文件
+sha256sum cr-docs-image.tar.gz > cr-docs-image.tar.gz.sha256
+```
+
+交付文件：
+
+```text
+cr-docs-image.tar.gz
+cr-docs-image.tar.gz.sha256
+docker-compose.yml
+deploy.sh
+.env.example
+DEPLOY-IMAGE.txt
+```
+
+部署机不需要 Node.js、pnpm、源码依赖或 Dockerfile，只需要 Docker 和上述部署文件。
+
+#### 在部署机加载并启动
+
+```bash
+cd /path/to/deploy-directory
+
+sha256sum -c cr-docs-image.tar.gz.sha256
+docker load < cr-docs-image.tar.gz
+
+# 已有站点升级：保留数据库，不重复 seed
+./deploy.sh --image --no-seed
+
+# 全新站点并需要示例内容
+# ./deploy.sh --image
+```
+
+`--image` 会检查本地是否存在 `zenmux-docs-web:latest`，不会触发构建。容器启动后仍会自动执行数据库 migration。
+
+> 不要只执行 `docker compose restart web` 来切换同 tag 的新镜像。`restart` 可能继续运行原容器。使用 `./deploy.sh --image --no-seed` 或 `docker compose up -d --force-recreate web`。
+
+如果使用自定义镜像名，在构建机和部署机的 `.env` 中设置相同的：
+
+```dotenv
+WEB_IMAGE=registry.example.com/team/cr-docs:2026-08-11
+```
+
+### 访问地址
+
+- 中文文档：`http://<服务器>:<WEB_PORT>/docs/zh`
+- 英文文档：`http://<服务器>:<WEB_PORT>/docs/en`
+- 管理后台：`http://<服务器>:<WEB_PORT>/admin`
+
+## 升级与数据库迁移
+
+升级前备份数据库和媒体：
+
+```bash
+docker compose exec -T db \
+  pg_dump -U payload -d crdocs --clean --if-exists \
+  | gzip > cr-docs-$(date +%Y%m%d-%H%M).sql.gz
+
+tar czf cr-docs-media-$(date +%Y%m%d-%H%M).tgz media
+```
+
+加载新镜像后：
+
+```bash
+docker load < cr-docs-image.tar.gz
+./deploy.sh --image --no-seed
+docker compose logs -f web
+```
+
+应用入口会在每次启动时执行尚未应用的 migration。
+
+### 从含旧门户数据的版本升级
+
+当前版本只保留文档站。升级 migration 会永久删除历史遗留的门户首页、门户导航和门户页脚数据表，不影响文档、媒体、用户、侧边栏导航和站点设置。
+
+如果旧环境曾使用这些门户数据，升级前必须先完成数据库备份。该删除操作不可通过应用 migration 自动恢复。
+
+## 数据持久化与迁移机器
+
+必须备份两部分：
+
+1. PostgreSQL：文档、用户、导航、配置和媒体元数据；
+2. `./media`：实际上传文件。
+
+迁移到新机器：
+
+```bash
+# 目标机先启动数据库
 docker compose up -d db
-gunzip -c dump.sql.gz | docker compose exec -T db psql -U payload -d crdocs -q
-tar xzf media.tgz
-docker compose up -d web
+
+# 恢复数据库
+gunzip -c cr-docs.sql.gz \
+  | docker compose exec -T db psql -U payload -d crdocs
+
+# 恢复媒体
+tar xzf cr-docs-media.tgz
+
+# 加载并启动预构建镜像
+docker load < cr-docs-image.tar.gz
+./deploy.sh --image --no-seed
 ```
 
-## 数据库迁移
+## 环境变量
 
-改了 collection/global 的字段后，生成新迁移：
+| 变量 | 用途 | 示例 / 默认值 |
+| --- | --- | --- |
+| `DATABASE_URL` | 本地开发或外部 PostgreSQL 连接 | `postgres://payload:payload@localhost:5432/crdocs` |
+| `PAYLOAD_SECRET` | Payload 会话和加密密钥，生产必须随机 | 无安全默认值 |
+| `ADMIN_ORIGINS` | 允许登录后台的浏览器源，逗号分隔 | `http://localhost:8300` |
+| `WEB_PORT` | Compose 对外端口 | `3000` |
+| `WEB_IMAGE` | Compose 使用的 Web 镜像 | `zenmux-docs-web:latest` |
+| `POSTGRES_USER` | Compose PostgreSQL 用户 | `payload` |
+| `POSTGRES_PASSWORD` | Compose PostgreSQL 密码 | `payload`，生产必须修改 |
+| `POSTGRES_DB` | Compose PostgreSQL 数据库 | `crdocs` |
+| `SEED_ADMIN_EMAIL` | seed 创建的管理员邮箱 | `admin@example.com` |
+| `SEED_ADMIN_PASSWORD` | seed 创建的管理员密码 | `changeme123`，生产必须修改 |
+
+修改访问域名、IP 或端口时，应同步更新 `ADMIN_ORIGINS`。遗漏正确来源可能表现为登录接口成功后又跳回登录页。
+
+## 运维
 
 ```bash
-pnpm payload migrate:create <name>   # 生成 src/migrations/*
-# 提交到仓库；下次 docker compose up 时 entrypoint 会自动 apply
+docker compose ps
+docker compose logs -f web
+docker compose logs -f db
+docker compose restart web
+docker compose down              # 停止，保留数据库卷
+docker compose down -v           # 删除数据库卷，危险
 ```
+
+健康检查：
+
+```bash
+curl -I http://127.0.0.1:${WEB_PORT:-3000}/admin
+curl -I http://127.0.0.1:${WEB_PORT:-3000}/docs/zh
+```
+
+## 常见问题
+
+### 登录成功后又返回登录页
+
+检查浏览器实际访问的 origin 是否包含在 `.env` 的 `ADMIN_ORIGINS` 中，包括协议、域名或 IP、端口。
+
+### 导入后文档没有出现在前台
+
+导入默认是草稿。请在后台检查内容和图片后发布，或在导入前明确选择“已发布”。
+
+### 英文按钮不可点击
+
+当前文档没有真实英文标题或正文。切换到后台 English 内容语言并补齐英文内容后，按钮会自动恢复。
+
+### 全新部署显示空站
+
+这是正常状态。进入后台创建并发布文档，或执行：
+
+```bash
+docker compose exec -T web node_modules/.bin/tsx scripts/seed.ts
+```
+
+### 图片在迁移后丢失
+
+数据库只保存媒体记录，实际文件位于 `./media`。迁移数据库时必须同时复制媒体目录。
+
+### 部署机内存不足，构建失败
+
+不要在部署机 build。请在资源充足的构建机运行 `docker compose build web` 和 `./save-image.sh`，部署机只执行 `docker load` 与 `./deploy.sh --image --no-seed`。
+
+### 查看 migration 失败原因
+
+```bash
+docker compose logs web
+docker compose run --rm web node_modules/.bin/payload migrate:status
+```
+
+## 安全提示
+
+- 生产环境必须修改 `PAYLOAD_SECRET`、数据库密码和初始管理员密码。
+- 不要提交 `.env`、数据库备份、媒体目录或导出的镜像。
+- 管理后台建议放在 HTTPS 反向代理之后。
+- 定期同时备份 PostgreSQL 和 `./media`。
+
+## License
+
+MIT

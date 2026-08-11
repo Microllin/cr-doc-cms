@@ -42,7 +42,7 @@ export function ImportMarkdownView({
           <h1>{tI18n(i18n, 'crDocs:importTitle')}</h1>
           <p>{tI18n(i18n, 'crDocs:importSubtitle')}</p>
         </header>
-        <ImportMarkdownForm initialLocale={locale?.code} />
+        <ImportMarkdownForm />
       </div>
     </DefaultTemplate>
   )

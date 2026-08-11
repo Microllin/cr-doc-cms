@@ -200,15 +200,59 @@ export function getPager(
   }
 }
 
-// 按 slug + locale 取单篇文档（仅已发布）
-export async function getAvailableLocales(slug: string): Promise<Locale[]> {
-  const available = await Promise.all(
-    (['zh', 'en'] as Locale[]).map(async (locale) => {
-      const doc = await getDocBySlug(slug, locale)
-      return doc ? locale : null
-    }),
+export type LocaleLinks = Partial<Record<Locale, string>>
+
+/**
+ * 编号目录的跨语言配对键：
+ *   01-入门与概览/04-迁移与过渡说明 -> 1/4
+ *   01-getting-started/04-migration-guide -> 1/4
+ *
+ * 中英文可以使用各自可读的 slug，只要目录编号和文档编号一致即可稳定配对。
+ * 没有完整编号结构时返回 null，避免凭标题猜测并链接到错误文档。
+ */
+export function numberedPathKey(slug: string): string | null {
+  const segments = slug.split('/').filter(Boolean)
+  if (!segments.length) return null
+  const numbers: string[] = []
+  for (const segment of segments) {
+    const match = /^(\d+)(?:[-_.]|$)/.exec(segment)
+    if (!match) return null
+    numbers.push(String(Number(match[1])))
+  }
+  return numbers.join('/')
+}
+
+/** 当前文档在各语言下的真实 URL，支持同 slug 与编号配对的不同 slug。 */
+export async function getLocaleLinks(slug: string, currentLocale: Locale): Promise<LocaleLinks> {
+  const links: LocaleLinks = { [currentLocale]: docUrl(currentLocale, slug) }
+  const target: Locale = currentLocale === 'zh' ? 'en' : 'zh'
+
+  // 首选标准 Payload 多语言模型：同一记录、同一 slug 下存在目标语言内容。
+  const sameSlug = await getDocBySlug(slug, target)
+  if (sameSlug) {
+    links[target] = docUrl(target, slug)
+    return links
+  }
+
+  // 兼容分别导入的中英文目录：按稳定编号路径寻找唯一对应文档。
+  const key = numberedPathKey(slug)
+  if (!key) return links
+  const payload = await getPayloadClient()
+  const candidates = await payload.find({
+    collection: 'docs',
+    where: PUBLISHED,
+    locale: target,
+    fallbackLocale: false,
+    limit: 2000,
+    depth: 0,
+    pagination: false,
+  })
+  const matches = (candidates.docs as Doc[]).filter(
+    (doc) => doc.slug && hasLocalizedContent(doc) && numberedPathKey(doc.slug) === key,
   )
-  return available.filter((locale): locale is Locale => locale !== null)
+  // 只有唯一匹配才启用，编号重复时宁可禁用也不能跳错页面。
+  if (matches.length === 1) links[target] = docUrl(target, matches[0].slug)
+  return links
 }
 
 export async function getDocBySlug(slug: string, locale: Locale): Promise<Doc | null> {

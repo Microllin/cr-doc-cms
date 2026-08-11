@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation'
 import { renderMarkdown } from '../../_lib/markdown'
 import {
   flattenSidebar,
-  getAvailableLocales,
   getDocBySlug,
+  getLocaleLinks,
   getPager,
   getSettings,
   getSidebar,
@@ -34,16 +34,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const doc = await getDocBySlug(slug, locale)
   if (!doc) return { title: settings.siteName, description: settings.description || settings.siteName }
 
-  const availableLocales = await getAvailableLocales(slug)
-  const encodedSlug = slug.split('/').map(encodeURIComponent).join('/')
+  const localeLinks = await getLocaleLinks(slug, locale)
   return {
     title: `${doc.title} | ${settings.siteName}`,
     description: doc.excerpt || settings.description || doc.title,
-    alternates: {
-      languages: Object.fromEntries(
-        availableLocales.map((available) => [available, `/docs/${available}/${encodedSlug}`]),
-      ),
-    },
+    alternates: { languages: localeLinks },
   }
 }
 
@@ -68,7 +63,7 @@ export default async function DocPage(props: PageProps) {
   // 文档被取消发布或删除后，读者可能还停留在旧地址。
   // 回到当前语言首页：有其它已发布内容时会继续跳到第一篇；全部下线时显示空状态。
   if (!doc) redirect(`/docs/${locale}`)
-  const availableLocales = await getAvailableLocales(slug)
+  const localeLinks = await getLocaleLinks(slug, locale)
 
   const { html, toc } = await renderMarkdown(doc.content || '', { locale, slug })
   const { prev, next } = getPager(sidebar, slug)
@@ -78,7 +73,7 @@ export default async function DocPage(props: PageProps) {
       locale={locale}
       sidebar={sidebar}
       settings={settings}
-      availableLocales={availableLocales}
+      localeLinks={localeLinks}
       aside={<TocAside items={toc} locale={locale} />}
     >
       <article className="vp-doc">
@@ -94,14 +89,14 @@ function Shell({
   locale,
   sidebar,
   settings,
-  availableLocales,
+  localeLinks,
   aside,
   children,
 }: {
   locale: Locale
   sidebar: Awaited<ReturnType<typeof getSidebar>>
   settings: SiteSettings
-  availableLocales?: Locale[]
+  localeLinks?: Partial<Record<Locale, string>>
   aside?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -113,7 +108,7 @@ function Shell({
         siteName={settings.siteName}
         logoMark={settings.logoMark}
         logoUrl={settings.logoUrl}
-        availableLocales={availableLocales}
+        localeLinks={localeLinks}
       />
       <div className="vp-body">
         <Sidebar groups={sidebar} />

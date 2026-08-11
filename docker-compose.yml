@@ -40,8 +40,6 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-payload}:${POSTGRES_PASSWORD:-payload}@db:5432/${POSTGRES_DB:-crdocs}
       PAYLOAD_SECRET: ${PAYLOAD_SECRET:?请在 .env 里设置 PAYLOAD_SECRET}
       NODE_ENV: production
-      # 门户跨源读 API 的来源（cors + csrf）
-      PORTAL_ORIGINS: ${PORTAL_ORIGINS:-}
       # 浏览器打开后台时用的源（仅 csrf）。漏了会导致登录后闪回登录页。
       # 换域名/换端口/用 IP 访问后台，都要把对应来源加进来。
       ADMIN_ORIGINS: ${ADMIN_ORIGINS:-http://localhost:${WEB_PORT:-3000}}

@@ -20,7 +20,9 @@ vi.mock('payload', () => ({
   }),
 }))
 
-const { getSidebar, flattenSidebar, getPager } = await import('@/app/(frontend)/_lib/nav')
+const { getSidebar, flattenSidebar, getPager, numberedPathKey } = await import(
+  '@/app/(frontend)/_lib/nav'
+)
 
 const doc = (slug: string, title = slug): FakeDoc => ({
   slug,
@@ -34,6 +36,15 @@ beforeEach(() => {
   navGlobal = { groups: [] }
   allDocs = []
   findArgs.length = 0
+})
+
+describe('多语言文档配对', () => {
+  it('中英文可读 slug 按目录与文档编号得到同一配对键', () => {
+    expect(numberedPathKey('01-入门与概览/04-迁移与过渡说明')).toBe('1/4')
+    expect(numberedPathKey('01-getting-started/04-migration-guide')).toBe('1/4')
+    expect(numberedPathKey('guide/no-number')).toBeNull()
+    expect(numberedPathKey('01-guide/no-number')).toBeNull()
+  })
 })
 
 describe('getSidebar 手工编排的分组', () => {

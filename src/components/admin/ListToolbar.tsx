@@ -7,6 +7,7 @@ import {
   EditMany,
   toast,
   useConfig,
+  useLocale,
   useSelection,
   useTranslation,
 } from '@payloadcms/ui'
@@ -34,6 +35,7 @@ export function ListToolbar({
   const { t } = useTranslation<CustomTranslationsObject, CustomTranslationsKeys>()
   const { count, selectAll, selectedIDs, toggleAll, totalDocs } = useSelection()
   const { getEntityConfig } = useConfig()
+  const locale = useLocale()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -114,8 +116,55 @@ export function ListToolbar({
 
   const deleteSelected = () => run('DELETE', scopeQuery(), t('crDocs:deleteSelected'))
 
-  const setStatus = (status: 'draft' | 'published', label: string) =>
-    run('PATCH', scopeQuery(), label, { _status: status })
+  const setStatus = async (status: 'draft' | 'published', label: string) => {
+    const query = scopeQuery()
+    if (!query || !query.includes('where')) {
+      setError(t('crDocs:refusedUnscoped'))
+      toast.error(t('crDocs:refusedUnscoped'))
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+    try {
+      // 发布状态必须按每篇文档真实存在的语言更新，不能让默认中文 locale
+      // 去校验英文文档，否则混合选择时会报「标题无效」。
+      let ids = selectedIDs
+      if (selectAll === 'allAvailable') {
+        const response = await fetch(`/api/${collectionSlug}?${query}&limit=0&depth=0`, {
+          credentials: 'include',
+        })
+        const result = await response.json()
+        if (!response.ok) throw new Error(t('crDocs:opFailed', { label, status: response.status }))
+        ids = Array.isArray(result?.docs) ? result.docs.map((doc: { id: number | string }) => doc.id) : []
+      }
+
+      const response = await fetch('/api/bulk-doc-status', {
+        body: JSON.stringify({ ids, locale: locale?.code, status }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const result = await response.json().catch(() => null)
+      const failed = Array.isArray(result?.errors) ? result.errors.length : 0
+      const done = Array.isArray(result?.docs) ? result.docs.length : 0
+      if (!response.ok || failed > 0) {
+        const message = result?.errors?.[0]?.message || result?.error || t('crDocs:partialFailed', { count: failed })
+        setError(message)
+        toast.error(message)
+      } else {
+        toast.success(t('crDocs:actionDone', { count: done, label }))
+      }
+      toggleAll(false)
+      router.refresh()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setError(message)
+      toast.error(message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // 「全部」= 当前筛选下的全部，而不是无视筛选的整表。
   //

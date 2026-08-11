@@ -1,4 +1,5 @@
 import { MediaListToolbar as MediaListToolbar_652aa70326503b9e9e12ae0112df1364 } from '../../../components/admin/ListToolbar'
+import { DocTitleCell as DocTitleCell_b474159d38d7de332779450c0b8713ca } from '../../../components/admin/DocTitleCell'
 import { DocsListToolbar as DocsListToolbar_652aa70326503b9e9e12ae0112df1364 } from '../../../components/admin/ListToolbar'
 import { AdminAvatar as AdminAvatar_311c79a2d9598d68079b027d828b9bfa } from '../../../components/admin/AdminAvatar'
 import { BrandIcon as BrandIcon_d0588eb7948ddcaab14f9f6ea2cd1dd7 } from '../../../components/admin/BrandIcon'
@@ -12,6 +13,7 @@ import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } f
 /** @type import('payload').ImportMap */
 export const importMap = {
   "/components/admin/ListToolbar#MediaListToolbar": MediaListToolbar_652aa70326503b9e9e12ae0112df1364,
+  "/components/admin/DocTitleCell#DocTitleCell": DocTitleCell_b474159d38d7de332779450c0b8713ca,
   "/components/admin/ListToolbar#DocsListToolbar": DocsListToolbar_652aa70326503b9e9e12ae0112df1364,
   "/components/admin/AdminAvatar#AdminAvatar": AdminAvatar_311c79a2d9598d68079b027d828b9bfa,
   "/components/admin/BrandIcon#BrandIcon": BrandIcon_d0588eb7948ddcaab14f9f6ea2cd1dd7,

@@ -25,10 +25,23 @@ test.describe('Admin Panel', () => {
     await expect(dashboardArtifact).toBeVisible()
   })
 
+  test('portal globals and admin navigation are removed', async () => {
+    const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000'
+    await page.goto(`${baseURL}/admin?locale=zh`)
+
+    await expect(page.getByText('门户', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Portal', { exact: true })).toHaveCount(0)
+
+    for (const slug of ['portal-home', 'portal-nav', 'portal-footer']) {
+      const response = await page.request.get(`${baseURL}/api/globals/${slug}`)
+      expect(response.status()).toBe(404)
+    }
+  })
+
   test('can navigate to list view', async () => {
     await page.goto(`${process.env.E2E_BASE_URL || 'http://localhost:3000'}/admin/collections/users`)
     await expect(page).toHaveURL(new RegExp('/admin/collections/users$'))
-    const listViewArtifact = page.locator('h1', { hasText: 'Users' }).first()
+    const listViewArtifact = page.getByRole('heading', { name: /^(Users|用户)$/ }).first()
     await expect(listViewArtifact).toBeVisible()
   })
 

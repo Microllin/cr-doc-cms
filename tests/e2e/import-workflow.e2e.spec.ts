@@ -112,6 +112,14 @@ test.describe('后台 Markdown 导入工作流', () => {
     expect(result.totalDocs).toBe(1)
     expect(result.docs[0]._status).toBe('draft')
     expect(result.docs[0].title).toBe(FOLDER_TITLE)
+
+    // 切到没有翻译的内容语言时，标题列必须明确提示缺失，不能显示成空白。
+    await page.goto('/admin/collections/docs?locale=en')
+    await expect(page.getByText(`No English title · ${FOLDER_SLUG}`, { exact: true })).toBeVisible()
+
+    // 回到导入时使用的中文 locale，列表应显示真实标题。
+    await page.goto('/admin/collections/docs?locale=zh')
+    await expect(page.getByText(FOLDER_TITLE, { exact: true })).toBeVisible()
   })
 
   test('只有明确选择已发布时才直接发布', async ({ page }) => {
