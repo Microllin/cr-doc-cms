@@ -1,107 +1,65 @@
-# CR-Docs 镜像部署清单
+# ZenMux Docs 完整离线镜像部署检查清单
 
-## 📦 交付文件
+## 镜像文件
 
-- ✅ `cr-docs-image.tar.gz` (263MB) - Docker 镜像
-- ✅ `docker-compose.yml` - 服务编排配置
-- ✅ `deploy.sh` - 一键部署脚本
-- ✅ `.env.example` - 环境变量模板
-- ✅ `DEPLOY.md` - 完整部署文档
+- `zenmux-docs-full-with-database.tar.gz`
+- `zenmux-docs-full-with-database.tar.gz.sha256`
+- 归档内镜像：`zenmux-docs-web:latest`、`postgres:16-alpine`
 
-## 🔧 部署前检查
+## 部署前
 
 ```bash
-# 1. 检查 Docker 环境
-docker version && docker compose version
-
-# 2. 检查端口（默认 8300）
-netstat -tuln | grep 8300 || echo "端口可用"
-
-# 3. 检查磁盘空间（至少 5GB）
-df -h .
+docker version
+docker compose version
+sha256sum -c zenmux-docs-full-with-database.tar.gz.sha256
+docker load < zenmux-docs-full-with-database.tar.gz
 ```
 
-## 🚀 快速部署（3 步）
+必须在 `.env` 中填写真实值，不能保留占位符：
+
+```dotenv
+POSTGRES_USER=<实际数据库用户>
+POSTGRES_PASSWORD=<强随机密码>
+POSTGRES_DB=<实际数据库名>
+PAYLOAD_SECRET=<openssl rand -hex 32 的结果>
+```
+
+镜像不包含默认数据库账号、密码或数据库名。不要直接运行不带环境变量的 PostgreSQL 容器；使用项目 Compose，或在 `docker run` 时明确传入上述三个 PostgreSQL 变量。
+
+## 首次数据导入
+
+数据库镜像通过 PostgreSQL 官方初始化机制工作：
+
+1. 仅在数据库 volume 为空时，根据运行时变量初始化账号和数据库；
+2. 随后执行 `/docker-entrypoint-initdb.d/10-zenmux-data.sql`；
+3. SQL 导入文档、导航、设置和媒体元数据，但不导入后台管理员、会话、用户偏好或用户锁定数据，也不创建数据库角色或密码；
+4. 已有 `cr-docs_pgdata` 时不会再次执行 SQL，现有数据不会被覆盖。
+
+完整镜像还包含对应媒体文件。由于业务数据已经存在，启动时不要再运行 seed：
 
 ```bash
-# 1. 加载镜像
-docker load < cr-docs-image.tar.gz
-
-# 2. 启动服务
-./deploy.sh --image
-
-# 3. 浏览器访问
-# 前台: http://<服务器IP>:8300/docs/zh
-# 后台: http://<服务器IP>:8300/admin
+./deploy.sh --image --no-seed
 ```
 
-## ✅ 验证 i18n 修复
+## 上线验证
 
-1. 打开浏览器访问文档站
-2. 按 F12 打开开发者工具，切到 Console 标签
-3. 应该看到：`[i18n-fix] 语言切换补丁已生效`
-4. 点击右上角语言切换按钮（中/EN）
-5. **预期行为**：页面完整刷新（地址栏会闪一下），内容正确切换
-6. **错误行为**：URL 变了但内容没变 = 修复未生效
-
-## 📞 问题排查
-
-### 问题 1：镜像加载失败
 ```bash
-# 检查文件完整性
-ls -lh cr-docs-image.tar.gz
-md5sum cr-docs-image.tar.gz
+docker compose ps
+# db 和 web 均应为 healthy
+
+docker compose exec -T db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from docs"'
+
+curl -fsS http://127.0.0.1:${WEB_PORT:-3000}/admin >/dev/null
+curl -fsS http://127.0.0.1:${WEB_PORT:-3000}/search-index >/dev/null
 ```
 
-### 问题 2：数据库连接失败
-```bash
-# 检查数据库容器
-docker compose ps db
-docker compose logs db
+预期数据基线：
 
-# 手动创建数据库（如果需要）
-docker compose exec db psql -U payload -d postgres -c "CREATE DATABASE crdocs;"
-```
+- 正文文档：120
+- 已排除的非正文目录：`audit/`（包括对应历史版本）
+- 后台用户：0（首次访问 `/admin` 时现场创建）
+- 媒体记录：86
+- 媒体文件：86
 
-### 问题 3：热补丁不生效
-```bash
-# 验证热补丁文件存在
-curl http://127.0.0.1:8300/fix-i18n.js
-
-# 检查返回内容应该包含
-# "i18n 语言切换热补丁"
-```
-
-### 问题 4：页面 404
-```bash
-# 检查是否导入了种子数据
-docker compose exec db psql -U payload -d crdocs -c "SELECT COUNT(*) FROM docs;"
-
-# 如果返回 0，手动导入
-docker compose exec web pnpm tsx scripts/seed.ts
-```
-
-## 🔐 安全提醒
-
-⚠️ **首次登录后必须修改管理员密码**
-
-默认账号：
-- 邮箱：`admin@example.com`
-- 密码：`changeme123`
-
-登录后立即修改：
-1. 访问 `/admin`
-2. 右上角用户图标 → Account → Change Password
-
-## 📊 资源使用
-
-- CPU：1-2 核（运行时）
-- 内存：512MB（Web）+ 256MB（DB）
-- 磁盘：~2GB（镜像 + 数据）
-
-## 📝 版本信息
-
-- 构建日期：2026-07-27
-- 基于分支：dev (commit 381d8afc9)
-- 镜像标签：zenmux-docs-web:latest
-- 修复内容：i18n 语言切换问题
+首次访问 `/admin` 应显示“创建第一个用户”，由部署者现场设置管理员邮箱和密码。不要运行 seed，否则 seed 会自动创建管理员。`POSTGRES_USER` 是数据库账号，与后台管理员完全不同。

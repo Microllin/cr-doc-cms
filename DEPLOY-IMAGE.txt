@@ -1,16 +1,41 @@
-CR Docs 镜像模式部署（部署机全程不构建）
-============================================
-前置：部署机装好 Docker Engine + docker compose v2 插件。
+ZenMux Docs 完整离线镜像说明
+================================
 
-在本目录执行：
-  1) docker load < cr-docs-image.tar.gz     # 导入镜像（tag: zenmux-docs-web:latest）
-  2) ./deploy.sh --image                     # 不构建，直接起：migrate + next start + seed
-     # 指定对外端口： WEB_PORT=80 ./deploy.sh --image
-     # 不灌示例内容： ./deploy.sh --image --no-seed
+镜像归档：zenmux-docs-full-with-database.tar.gz
+校验文件：zenmux-docs-full-with-database.tar.gz.sha256
 
-内存护栏已内置：web 512m / db 256m（与 console-v2 同机时保护邻居）。
-起来后：
-  前台 http://<机器IP>:<端口>/docs/zh    后台 http://<机器IP>:<端口>/admin
-  初始管理员见 .env（SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD，登录后请改密码）
+归档内包含：
+  - zenmux-docs-web:latest
+  - postgres:16-alpine
 
-日志：docker compose logs -f web   停止：docker compose down   （数据保留在卷 cr-docs_pgdata）
+重要：数据库镜像不提供默认账号、密码或数据库名。
+首次启动前必须由部署方在 .env 中填写：
+  POSTGRES_USER=<实际数据库用户>
+  POSTGRES_PASSWORD=<强随机密码>
+  POSTGRES_DB=<实际数据库名>
+  PAYLOAD_SECRET=<openssl rand -hex 32 的结果>
+
+加载与启动：
+  sha256sum -c zenmux-docs-full-with-database.tar.gz.sha256
+  docker load < zenmux-docs-full-with-database.tar.gz
+  cp .env.example .env
+  # 编辑 .env，替换所有 CHANGE_ME / YOUR_SECRET_HERE
+  ./deploy.sh --image --no-seed
+  docker compose ps
+
+数据库初始化机制：
+  1. PostgreSQL 官方入口在空卷首次启动时，根据运行时传入的
+     POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB 创建账号和数据库；
+  2. 随后执行 /docker-entrypoint-initdb.d/10-zenmux-data.sql 导入当前业务数据；
+  3. SQL 不创建数据库账号，也不包含数据库运行密码；
+  4. 已有 cr-docs_pgdata 卷时不会再次初始化或导入，卷内数据优先。
+
+完整镜像已有文档和媒体文件，但不包含后台管理员、会话、用户偏好或用户锁定数据，
+因此必须使用 --no-seed，避免 seed 自动创建默认管理员。
+首次访问 /admin 会显示“创建第一个用户”，由部署者现场设置管理员邮箱和密码。
+POSTGRES_USER 是数据库账号，与后台管理员无关。
+
+健康检查：
+  - PostgreSQL：pg_isready（使用运行时数据库用户和数据库名）
+  - Web：http://127.0.0.1:3000/admin
+  - docker compose ps 中 db / web 均应显示 healthy

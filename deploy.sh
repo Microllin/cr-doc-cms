@@ -55,7 +55,16 @@ if grep -q 'PAYLOAD_SECRET=YOUR_SECRET_HERE' .env || ! grep -q '^PAYLOAD_SECRET=
   log "已生成随机 PAYLOAD_SECRET。"
 fi
 
-# 2b. 端口：命令行 WEB_PORT 优先写入 .env
+# 2b. 数据库账号、密码和库名必须由部署方明确提供；禁止使用示例占位符。
+for key in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB; do
+  value="$(grep -E "^${key}=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+  [ -n "$value" ] || die ".env 缺少 ${key}，请填写后再部署。"
+  case "$value" in
+    CHANGE_ME*) die ".env 中 ${key} 仍是占位符，请填写实际值后再部署。" ;;
+  esac
+done
+
+# 2c. 端口：命令行 WEB_PORT 优先写入 .env
 if [ -n "${WEB_PORT:-}" ]; then
   if grep -q '^WEB_PORT=' .env; then sed -i "s|^WEB_PORT=.*|WEB_PORT=${WEB_PORT}|" .env; else echo "WEB_PORT=${WEB_PORT}" >> .env; fi
 fi
@@ -99,6 +108,12 @@ fi
 # ---- 6. 访问信息 ----
 LAN_IP="$(ip -4 addr show scope global 2>/dev/null | grep -oP 'inet \K[\d.]+' | grep -vE '^(172\.1[0-9]|172\.2[0-9]|172\.3[01])\.' | head -1 || true)"
 LAN_IP="${LAN_IP:-<本机IP>}"
+if [ "$DO_SEED" = "1" ]; then
+  ADMIN_INFO="  管理员   : ${ADMIN_EMAIL}
+  初始密码 : ${ADMIN_PW}   ← 登录后请立即修改！"
+else
+  ADMIN_INFO="  首次设置 : 打开后台，现场创建首个管理员账号和密码"
+fi
 cat <<EOF
 
 ============================================================
@@ -106,8 +121,7 @@ cat <<EOF
 ------------------------------------------------------------
   文档前台 : http://${LAN_IP}:${PORT}/docs/zh
   后台管理 : http://${LAN_IP}:${PORT}/admin
-  管理员   : ${ADMIN_EMAIL}
-  初始密码 : ${ADMIN_PW}   ← 登录后请立即修改！
+${ADMIN_INFO}
 ------------------------------------------------------------
   容器状态 : docker compose ps
   查看日志 : docker compose logs -f web

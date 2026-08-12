@@ -57,51 +57,45 @@ WEB_PORT=80 ./deploy.sh        # 指定对外端口
 
 `next build` 内存要求高（Node 堆上限 8G），**不适合在低配部署机或已跑着其他服务的机器上构建**。镜像模式把构建挪到高配机做一次，部署机只 `docker load` + 起服务，**全程不 build**。
 
-### 📦 本次交付镜像信息
+### 本次完整离线镜像
 
-- **文件**: `cr-docs-image.tar.gz`
-- **大小**: 263MB（解压后 1.5GB）
-- **构建日期**: 2026-07-27
-- **基于分支**: dev (commit 381d8afc9)
-- **包含修复**: 
-  - ✅ Next.js Link `prefetch={false}` - 禁用预取缓存
-  - ✅ i18n 热补丁 `/fix-i18n.js` - 强制硬跳转切换语言
+- 文件：`zenmux-docs-full-with-database.tar.gz`
+- Web 镜像：`zenmux-docs-web:latest`
+- 数据库镜像：`postgres:16-alpine`（包含首次启动导入的业务数据 SQL）
+
+数据库镜像不保存默认账号、密码或数据库名。部署方必须在首次启动时提供：
+
+```dotenv
+POSTGRES_USER=<实际数据库用户>
+POSTGRES_PASSWORD=<强随机密码>
+POSTGRES_DB=<实际数据库名>
+```
+
+空数据库卷首次启动流程：PostgreSQL 官方入口根据以上变量创建账号和数据库，然后执行 `/docker-entrypoint-initdb.d/10-zenmux-data.sql` 导入文档数据。SQL 不创建账号密码；已有数据库卷不会再次执行导入。
 
 ### 部署步骤
 
-**① 部署机（只需 Docker，无需源码/Dockerfile/联网拉依赖）：**
 ```bash
-# 1. 加载镜像
-docker load < cr-docs-image.tar.gz
+sha256sum -c zenmux-docs-full-with-database.tar.gz.sha256
+docker load < zenmux-docs-full-with-database.tar.gz
 
-# 2. 验证镜像已加载
-docker images | grep zenmux-docs-web
-# 应该看到: zenmux-docs-web:latest
+cp .env.example .env
+# 编辑 .env，必须替换 POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / PAYLOAD_SECRET
+./deploy.sh --image --no-seed
 
-# 3. 启动服务（会自动创建数据库、运行迁移、导入种子数据）
-./deploy.sh --image
-
-# 指定端口 / 不灌示例：
-WEB_PORT=80 ./deploy.sh --image --no-seed
+docker compose ps
+# db 和 web 均应显示 healthy
 ```
 
-**② 验证 i18n 修复是否生效：**
-```bash
-# 1. 浏览器访问文档站
-# 2. 打开开发者工具 Console，应该看到：
-#    [i18n-fix] 语言切换补丁已生效
-# 3. 点击右上角语言切换按钮（中/EN）
-# 4. 页面应该完整刷新（地址栏闪一下），内容正确切换
-
-# 或者命令行验证热补丁文件存在：
-curl http://127.0.0.1:8300/fix-i18n.js
-```
+完整镜像包含当前文档和媒体文件，但刻意排除了后台管理员、会话、用户偏好和用户锁定数据，因此不要运行 seed。首次打开 `/admin` 会显示“创建第一个用户”，由部署者现场设置后台管理员邮箱和密码。`POSTGRES_USER` 是数据库账号，与后台管理员无关。
 
 ### 技术细节
 
-- `docker-compose.yml` 已给 web/db 设**内存护栏** `mem_limit`（web `512m`、db `256m`），与 console-v2 等邻居同机时防止互相挤占。
-- 镜像自包含 `.next` 构建产物、`node_modules`、`payload`/`tsx` CLI 与 `scripts/`，`load` 即用。
-- 部署机若缺镜像，`--image` 会**明确报错**，不会悄悄触发一次超重构建。
+- 数据导入仅发生在空的 `cr-docs_pgdata` 首次启动；已有卷优先，不会被镜像覆盖。
+- 数据库健康检查：按运行时 `POSTGRES_USER` / `POSTGRES_DB` 执行 `pg_isready`。
+- Web 健康检查：请求 `http://127.0.0.1:3000/admin`。
+- `docker-compose.yml` 为 web/db 设置内存护栏（web `512m`、db `256m`）。
+- 部署机若缺 Web 镜像，`--image` 会明确报错，不会触发源码构建。
 
 ### 如果需要重新构建镜像
 
@@ -121,8 +115,8 @@ tar -cf cr-docs-deploy-$(date +%Y%m%d).tar \
 
 ```bash
 cp .env.example .env
-# 必改：PAYLOAD_SECRET=$(openssl rand -hex 32)
-# 按需改：WEB_PORT、SEED_ADMIN_EMAIL、SEED_ADMIN_PASSWORD、POSTGRES_PASSWORD
+# 必改：POSTGRES_USER、POSTGRES_PASSWORD、POSTGRES_DB、PAYLOAD_SECRET
+# 完整数据镜像部署应使用 ./deploy.sh --image --no-seed，不要重复灌 seed。
 
 docker compose up -d --build                                   # 构建并启动
 docker compose exec web node_modules/.bin/tsx scripts/seed.ts  # 灌示例（可选）
@@ -139,7 +133,7 @@ docker compose exec web node_modules/.bin/tsx scripts/seed.ts  # 灌示例（可
 |---|---|---|
 | `WEB_PORT` | 对外访问端口 | `3000`（脚本默认写 `8300`） |
 | `PAYLOAD_SECRET` | 会话/加密密钥，**必须随机**，脚本自动生成 | — |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 自带 Postgres 的库凭据 | `payload` / `payload` / `crdocs` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 空卷首次启动时创建的库凭据和数据库 | 均必填，无默认值 |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | 初始管理员 | `admin@example.com` / `changeme123` |
 
 > 数据库为 **compose 自带**（服务名 `db`，容器 `cr-docs-db-1`），数据持久化在卷 `cr-docs_pgdata`。
