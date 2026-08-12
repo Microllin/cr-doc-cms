@@ -305,20 +305,41 @@ docker load < zenmux-docs-full-with-database.tar.gz
 
 ```bash
 cp .env.example .env
-openssl rand -hex 32
 ```
 
-编辑 `.env`，必须填写真实值：
+编辑 `.env`，可以照下面填写：
 
 ```dotenv
-POSTGRES_USER=<数据库用户>
-POSTGRES_PASSWORD=<数据库强随机密码>
-POSTGRES_DB=<数据库名>
-PAYLOAD_SECRET=<随机长字符串>
-ADMIN_ORIGINS=http://<实际访问地址>:<WEB_PORT>
+# 数据库用户名，例如 docs
+POSTGRES_USER=docs
+# 数据库密码，请换成你自己的复杂密码
+POSTGRES_PASSWORD=DocsPass_2026_Strong
+# 数据库名称，例如 docsdb
+POSTGRES_DB=docsdb
+# 网站安全密钥，请换成一串较长的随机字符
+PAYLOAD_SECRET=ZenmuxDocsSecret_2026_Long_Random_String
+# 网站端口，一般不用改
+WEB_PORT=8300
+# 假设服务器 IP 是 192.168.1.100
+ADMIN_ORIGINS=http://192.168.1.100:8300
+WEB_IMAGE=zenmux-docs-web:latest
 ```
 
-数据库凭据没有默认值。空数据库卷首次启动时，PostgreSQL 官方入口先使用上述三个 `POSTGRES_*` 变量创建数据库账号和数据库，再执行 `/docker-entrypoint-initdb.d/10-zenmux-data.sql` 导入业务数据。已有 `cr-docs_pgdata` 卷时不会再次导入，卷内数据优先。
+简单理解：
+
+- 前三项是**数据库的账号、密码和名字**，不是后台登录账号；
+- `PAYLOAD_SECRET` 是网站的安全密钥；
+- `ADMIN_ORIGINS` 是你实际打开后台的网址。服务器 IP 或域名变了，这里也要跟着改。
+
+不填写会怎样：
+
+- 不填 `POSTGRES_USER`、`POSTGRES_PASSWORD` 或 `POSTGRES_DB`：数据库启动不了；
+- 不填 `PAYLOAD_SECRET`：网站启动不了；
+- 不填 `ADMIN_ORIGINS`：网站可能能打开，但通过服务器 IP 或域名登录后台后，可能又被退回登录页。
+
+因此这些项目都要填写，不要留下 `CHANGE_ME`。数据库密码和后台密码是两回事；后台密码在服务启动后访问 `/admin`，通过“创建第一个用户”页面现场设置。
+
+空数据库卷首次启动时，PostgreSQL 会用上述三个 `POSTGRES_*` 配置创建数据库账号和数据库，再执行 `/docker-entrypoint-initdb.d/10-zenmux-data.sql` 导入业务数据。已有 `cr-docs_pgdata` 卷时不会再次导入。
 
 ### 3. 启动
 
