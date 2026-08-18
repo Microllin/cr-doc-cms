@@ -1,4 +1,15 @@
-# CR Docs
+<div align="center">
+  <h1>CR Doc CMS</h1>
+  <p><strong>Self-hosted documentation site — Payload CMS 3 + Next.js 16 + PostgreSQL</strong></p>
+  <p>
+    <a href="https://github.com/Microllin/cr-doc-cms/actions"><img src="https://github.com/Microllin/cr-doc-cms/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/Microllin/cr-doc-cms/releases"><img src="https://img.shields.io/github/v/release/Microllin/cr-doc-cms" alt="Release"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+  </p>
+</div>
+
+---
+
 
 基于 **Payload CMS 3、Next.js 16 和 PostgreSQL** 的自托管动态文档站。
 
